@@ -81,7 +81,7 @@ export const GNX_MODELS: GNXModelOption[] = [
   {
     id: "mini",
     name: "GNX Rout Mini",
-    displayName: "GNX Rout",
+    displayName: "GNX Rout Mini",
     shortName: "GNX Rout Mini",
     badge: "Fast & Light",
     badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -91,7 +91,7 @@ export const GNX_MODELS: GNXModelOption[] = [
   {
     id: "thinking",
     name: "GNX Rout Thinking",
-    displayName: "GNX Rout",
+    displayName: "GNX Rout Thinking",
     shortName: "GNX Rout Thinking",
     badge: "Deep Reasoning",
     badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-200",
@@ -100,9 +100,9 @@ export const GNX_MODELS: GNXModelOption[] = [
   },
   {
     id: "pro",
-    name: "GNX Rout Pro",
-    displayName: "GNX Rout",
-    shortName: "GNX Rout Pro",
+    name: "GNX Rout 1 Pro",
+    displayName: "GNX Rout 1 Pro",
+    shortName: "GNX Rout 1 Pro",
     badge: "Pro & Vision",
     badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
     description: "Heavy tasks, multimodal, design, vision, files, and deep analysis.",
@@ -3243,7 +3243,7 @@ ${code}
           <PlusSparkleIcon className="w-4 h-4" />
           <span>{subscription.plan === "free" ? "Upgrade" : "Manage"}</span>
         </button>
-        {isLoggedIn && (
+        {isLoggedIn && !hasChatStarted && (
           <button
             type="button"
             onClick={togglePrivateMode}
@@ -3328,7 +3328,7 @@ ${code}
 
         {/* Right action / New chat & Share / Avatar */}
         <div className="flex items-center gap-2.5">
-          {isLoggedIn && (
+          {isLoggedIn && !hasChatStarted && (
             <button
               type="button"
               onClick={togglePrivateMode}
@@ -3397,19 +3397,19 @@ ${code}
       <AnimatePresence>
         {bannerMessage && !hasChatStarted && (
           <motion.div
-            initial={{ opacity: 0, y: -15, scale: 0.95 }}
+            initial={{ opacity: 0, y: -12, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            exit={{ opacity: 0, y: -8, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 400, damping: 28 }}
-            className="fixed top-14 sm:top-18 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center px-4"
+            className="fixed top-18 sm:top-20 md:top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center px-4 w-full max-w-md"
           >
-            <div className={`flex items-center justify-center space-x-3 font-mono text-4xl sm:text-5xl md:text-[52px] font-black tracking-tight select-none ${
+            <div className={`flex items-center justify-center space-x-2 sm:space-x-2.5 md:space-x-3 font-mono text-xl sm:text-2xl md:text-3xl font-black tracking-tight select-none ${
               bannerType === "glitch"
                 ? "text-[#48A04C]"
                 : "text-zinc-600 dark:text-zinc-400"
             }`}>
               {bannerType === "glitch" && (
-                <Ghost className="w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-[#48A04C] shrink-0 stroke-[2.2]" />
+                <Ghost className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#48A04C] shrink-0 stroke-[2.2]" />
               )}
               <span>{bannerMessage}</span>
             </div>

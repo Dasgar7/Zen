@@ -98,156 +98,422 @@ async function startServer() {
     return messages;
   }
 
-  // Helper function to call OpenRouter API
-  async function callOpenRouterModel(
-    contents: any[],
-    systemInstruction: string,
-    model: string
-  ): Promise<string> {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey || !apiKey.trim()) {
-      throw new Error("OPENROUTER_API_KEY environment variable is not configured.");
-    }
+  // ==========================================
+  // SMARTNESS LADDER MODEL CONFIGURATION
+  // ==========================================
+  // Level 1: Primary Model (OpenRouter Free) - Attempted FIRST for every single request
+  const LEVEL_1_PRIMARY_MODEL = "z-ai/glm-5.2:free";
 
-    const messages = formatGeminiContentsToOpenRouterMessages(contents, systemInstruction);
+  // Level 2: High-Capability Free OpenRouter Models (Fallback Tier 1)
+  const LEVEL_2_OPENROUTER_MODELS = [
+    "minimax/minimax-m3:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "minimax/minimax-m2.7:free",
+    "liquid/lfm-2.5-2.6b:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+  ];
 
-    console.log(`[OpenRouter Fallback] Sending request to model: ${model}`);
+  // Level 3: High-Performance Free Groq Models (Fallback Tier 2)
+  const LEVEL_3_GROQ_MODELS = [
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-120b",
+    "groq/compound",
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-20b",
+  ];
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey.trim()}`,
-        "HTTP-Referer": "https://ai.studio",
-        "X-Title": "Zen AI Engine",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.7,
-        max_tokens: 2048,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API error (${response.status}): ${errorText.slice(0, 200)}`);
-    }
-
-    const data = await response.json();
-    const replyText = data.choices?.[0]?.message?.content;
-    if (!replyText || typeof replyText !== "string") {
-      throw new Error("OpenRouter API returned empty response.");
-    }
-
-    return replyText;
-  }
-
-  // Helper function to call Gemini with robust retry and multi-tier fallback logic
-  async function generateContentWithRetryAndFallback(
-    ai: any,
-    contents: any[],
-    systemInstruction: string,
-    requestedModelId?: string
-  ): Promise<any> {
-    let baseModels = [
-      "gemini-3.7-flash",
-      "gemini-flash-latest",
-      "gemini-3.5-flash-lite",
-      "gemini-3.1-flash-lite",
-    ];
-
+  // Level 4: Gemini Models (Fallback Tier 3)
+  function getLevel4GeminiModels(requestedModelId?: string): string[] {
     if (requestedModelId === "pro") {
-      baseModels = [
+      return [
         "gemini-3.1-pro-preview",
         "gemini-3.7-flash",
         "gemini-flash-latest",
         "gemini-3.5-flash-lite",
       ];
     } else if (requestedModelId === "mini") {
-      baseModels = [
+      return [
         "gemini-3.5-flash-lite",
         "gemini-3.1-flash-lite",
         "gemini-3.7-flash",
         "gemini-flash-latest",
       ];
     }
+    return [
+      "gemini-3.7-flash",
+      "gemini-flash-latest",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+    ];
+  }
 
-    let lastError: any = null;
+  // Level 5: Final Safety Net Models (Fallback Tier 4 - Last Resort)
+  const LEVEL_5_SAFETY_NET_MODELS = [
+    { provider: "groq", model: "qwen/qwen3.8-27b" },
+    { provider: "openrouter", model: "minimax/minimax-m3:free" },
+    { provider: "groq", model: "openai/gpt-oss-120b" },
+    { provider: "gemini", model: "gemini-3.1-flash-lite" },
+  ];
 
-    // TIER 0: Try Primary Gemini Models (Fast pass, no long blocking sleeps)
-    for (const model of baseModels) {
+  // Helper function to call OpenRouter / OpenAI-compatible completion
+  async function callOpenAICompatibleModel(
+    apiUrl: string,
+    apiKey: string,
+    model: string,
+    messages: any[],
+    timeoutMs: number = 25000
+  ): Promise<string> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey.trim()}`,
+          "HTTP-Referer": "https://ai.studio",
+          "X-Title": "Zen AI Engine",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 4096,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error (${response.status}): ${errorText.slice(0, 150)}`);
+      }
+
+      const data = await response.json();
+      const choice = data.choices?.[0];
+      const replyText =
+        (typeof choice?.message?.content === "string" ? choice.message.content : "") ||
+        (typeof choice?.message?.reasoning === "string" ? choice.message.reasoning : "") ||
+        (typeof choice?.message?.reasoning_content === "string" ? choice.message.reasoning_content : "") ||
+        (typeof choice?.text === "string" ? choice.text : "");
+
+      if (!replyText || !replyText.trim()) {
+        throw new Error("API returned empty response.");
+      }
+
+      return replyText;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
+  }
+
+  // Helper function to call OpenRouter model (backward compatible wrapper)
+  async function callOpenRouterModel(
+    contents: any[],
+    systemInstruction: string,
+    model: string,
+    timeoutMs: number = 25000
+  ): Promise<string> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey || !apiKey.trim()) {
+      throw new Error("OPENROUTER_API_KEY is not configured.");
+    }
+    const messages = formatGeminiContentsToOpenRouterMessages(contents, systemInstruction);
+    return callOpenAICompatibleModel("https://openrouter.ai/api/v1/chat/completions", apiKey, model, messages, timeoutMs);
+  }
+
+  // Helper function to call Groq model
+  async function callGroqModel(
+    contents: any[],
+    systemInstruction: string,
+    model: string,
+    timeoutMs: number = 25000
+  ): Promise<string> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey || !apiKey.trim()) {
+      throw new Error("GROQ_API_KEY is not configured.");
+    }
+    const messages = formatGeminiContentsToOpenRouterMessages(contents, systemInstruction);
+    return callOpenAICompatibleModel("https://api.groq.com/openai/v1/chat/completions", apiKey, model, messages, timeoutMs);
+  }
+
+  // Generate content using the strict 5-Level Smartness Ladder
+  async function generateContentWithRetryAndFallback(
+    ai: any,
+    contents: any[],
+    systemInstruction: string,
+    requestedModelId?: string
+  ): Promise<any> {
+    const orKey = process.env.OPENROUTER_API_KEY?.trim();
+    const groqKey = process.env.GROQ_API_KEY?.trim();
+    const messages = formatGeminiContentsToOpenRouterMessages(contents, systemInstruction);
+
+    // LEVEL 1: PRIMARY MODEL (GLM 5.2 via OpenRouter) - Always tried first on every request
+    if (orKey) {
       try {
-        console.log(`[GNX Engine] Trying primary model: ${model}`);
+        console.log(`[GNX Smartness Ladder] Level 1 (Primary): Attempting ${LEVEL_1_PRIMARY_MODEL}...`);
+        const text = await callOpenAICompatibleModel(
+          "https://openrouter.ai/api/v1/chat/completions",
+          orKey,
+          LEVEL_1_PRIMARY_MODEL,
+          messages,
+          20000
+        );
+        console.log(`[GNX Model Routing] Handled by Level 1: ${LEVEL_1_PRIMARY_MODEL} (OpenRouter)`);
+        return { text };
+      } catch (err: any) {
+        console.warn(`[GNX Smartness Ladder] Level 1 failed (${err.message}). Stepping down to Level 2...`);
+      }
+    }
+
+    // LEVEL 2: High-Capability Free OpenRouter Models
+    if (orKey) {
+      console.log(`[GNX Smartness Ladder] Level 2: Attempting OpenRouter high-capability free pool...`);
+      for (const model of LEVEL_2_OPENROUTER_MODELS) {
+        try {
+          const text = await callOpenAICompatibleModel(
+            "https://openrouter.ai/api/v1/chat/completions",
+            orKey,
+            model,
+            messages,
+            18000
+          );
+          console.log(`[GNX Model Routing] Handled by Level 2: ${model} (OpenRouter)`);
+          return { text };
+        } catch (err: any) {
+          console.log(`[GNX Smartness Ladder] Level 2 model ${model} unavailable: ${err.message}`);
+        }
+      }
+      console.warn(`[GNX Smartness Ladder] Level 2 exhausted. Stepping down to Level 3...`);
+    }
+
+    // LEVEL 3: High-Speed Free Groq Models
+    if (groqKey) {
+      console.log(`[GNX Smartness Ladder] Level 3: Attempting Groq high-speed free pool...`);
+      for (const model of LEVEL_3_GROQ_MODELS) {
+        try {
+          const text = await callOpenAICompatibleModel(
+            "https://api.groq.com/openai/v1/chat/completions",
+            groqKey,
+            model,
+            messages,
+            18000
+          );
+          console.log(`[GNX Model Routing] Handled by Level 3: ${model} (Groq)`);
+          return { text };
+        } catch (err: any) {
+          console.log(`[GNX Smartness Ladder] Level 3 model ${model} unavailable: ${err.message}`);
+        }
+      }
+      console.warn(`[GNX Smartness Ladder] Level 3 exhausted. Stepping down to Level 4...`);
+    }
+
+    // LEVEL 4: Gemini Models
+    const geminiModels = getLevel4GeminiModels(requestedModelId);
+    console.log(`[GNX Smartness Ladder] Level 4: Attempting Gemini fallback pool...`);
+    for (const model of geminiModels) {
+      try {
         const result = await ai.models.generateContent({
           model,
           contents,
-          config: {
-            systemInstruction,
-          }
+          config: { systemInstruction },
         });
-        console.log(`[GNX Engine] Successfully generated response with model: ${model}`);
-        return { text: result.text };
-      } catch (error: any) {
-        lastError = error;
-        const errorMessage = typeof error === "object" && error !== null ? (error.message || String(error)) : String(error);
-        const errorCode = error?.code || error?.status || "";
-
-        const isQuotaOrRateLimit = 
-          errorMessage.includes("429") ||
-          errorMessage.includes("Quota") ||
-          errorMessage.includes("RESOURCE_EXHAUSTED") ||
-          errorCode === 429;
-
-        // If primary model hit rate limits, jump directly to OpenRouter fallback without stalling
-        if (isQuotaOrRateLimit) {
-          console.log(`[GNX Engine] Gemini rate limit reached on ${model}. Initiating instant multi-model fallback.`);
-          break;
+        if (result.text && result.text.trim()) {
+          console.log(`[GNX Model Routing] Handled by Level 4: ${model} (Gemini)`);
+          return { text: result.text };
         }
+      } catch (err: any) {
+        console.log(`[GNX Smartness Ladder] Level 4 model ${model} unavailable: ${err.message}`);
       }
     }
+    console.warn(`[GNX Smartness Ladder] Level 4 exhausted. Stepping down to Level 5 (Safety Net)...`);
 
-    // TIER 1 & TIER 2: OpenRouter Multi-Model Fallback
-    const hasOpenRouterKey = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim());
-    
-    if (hasOpenRouterKey) {
-      console.log("[GNX Engine] Routing request through OpenRouter Fallback Pipeline...");
-      const openRouterModels = [
-        // Verified active free models
-        "google/gemma-4-26b-a4b-it:free",
-        "google/gemma-4-31b-it:free",
-        "openai/gpt-oss-20b:free",
-        "nvidia/nemotron-3-nano-30b-a3b:free",
-        "nvidia/nemotron-nano-9b-v2:free",
-        "poolside/laguna-s-2.1:free",
-        "inclusionai/ling-3.0-tiny:free",
-        // Reliable paid fallbacks
-        "openai/gpt-4o-mini",
-        "meta-llama/llama-3.3-70b-instruct",
-        "deepseek/deepseek-chat",
-      ];
-
-      for (const openRouterModel of openRouterModels) {
-        try {
-          const text = await callOpenRouterModel(contents, systemInstruction, openRouterModel);
-          console.log(`[GNX Engine] Fallback successfully completed using model: ${openRouterModel}`);
+    // LEVEL 5: Last-Resort Safety Net
+    console.log(`[GNX Smartness Ladder] Level 5: Attempting final safety net models...`);
+    for (const entry of LEVEL_5_SAFETY_NET_MODELS) {
+      try {
+        if (entry.provider === "openrouter" && orKey) {
+          const text = await callOpenAICompatibleModel(
+            "https://openrouter.ai/api/v1/chat/completions",
+            orKey,
+            entry.model,
+            messages,
+            15000
+          );
+          console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (OpenRouter Safety Net)`);
           return { text };
-        } catch (orErr: any) {
-          // Silent transition to next fallback model without throwing noisy console errors
-          console.log(`[GNX Engine] Provider ${openRouterModel} busy. Trying next fallback...`);
+        } else if (entry.provider === "groq" && groqKey) {
+          const text = await callOpenAICompatibleModel(
+            "https://api.groq.com/openai/v1/chat/completions",
+            groqKey,
+            entry.model,
+            messages,
+            15000
+          );
+          console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (Groq Safety Net)`);
+          return { text };
+        } else if (entry.provider === "gemini") {
+          const result = await ai.models.generateContent({
+            model: entry.model,
+            contents,
+            config: { systemInstruction },
+          });
+          if (result.text && result.text.trim()) {
+            console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (Gemini Safety Net)`);
+            return { text: result.text };
+          }
         }
+      } catch (err: any) {
+        console.log(`[GNX Smartness Ladder] Level 5 model ${entry.model} failed: ${err.message}`);
       }
     }
 
-    const finalErrMsg = lastError?.message || String(lastError || "");
-    if (finalErrMsg.includes("Quota exceeded") || finalErrMsg.includes("RESOURCE_EXHAUSTED") || finalErrMsg.includes("429")) {
-      throw new Error("Gemini API request limit reached. Please wait a few seconds and try again.");
-    }
-
-    throw lastError || new Error("Failed to generate content after trying primary and fallback AI models.");
+    throw new Error("All AI tiers in the Smartness Ladder failed to produce a response. Please try again in a moment.");
   }
 
-  // Real-time SSE Streaming Helper with Multi-Model Fallback
+  // Real-time SSE Streaming helper for OpenAI/OpenRouter/Groq compatible endpoints
+  async function streamOpenAICompatibleSSE(
+    apiUrl: string,
+    apiKey: string,
+    model: string,
+    messages: any[],
+    onChunk: (chunk: string) => void,
+    timeoutMs: number = 30000,
+    firstTokenTimeoutMs: number = 7000
+  ): Promise<string> {
+    const controller = new AbortController();
+    let initialTimer: NodeJS.Timeout | null = null;
+    let overallTimer: NodeJS.Timeout | null = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
+    // Initial timeout to prevent getting stuck waiting in long OpenRouter processing queues
+    initialTimer = setTimeout(() => {
+      if (!hasReceivedFirstToken) {
+        controller.abort();
+      }
+    }, firstTokenTimeoutMs);
+
+    let hasReceivedFirstToken = false;
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey.trim()}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://ai.studio",
+          "X-Title": "Zen AI Engine",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true,
+          temperature: 0.7,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        if (initialTimer) clearTimeout(initialTimer);
+        if (overallTimer) clearTimeout(overallTimer);
+        const errText = await response.text().catch(() => "");
+        let conciseMsg = `HTTP ${response.status}`;
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed?.error?.message) {
+            conciseMsg += `: ${parsed.error.message}`;
+          }
+        } catch {
+          if (errText) conciseMsg += `: ${errText.slice(0, 80)}`;
+        }
+        throw new Error(conciseMsg);
+      }
+
+      let accumulatedText = "";
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let isDone = false;
+
+      while (!isDone) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          
+          // Comments / keepalives from OpenRouter/Groq (e.g. ": OPENROUTER PROCESSING")
+          if (trimmed.startsWith(":")) {
+            if (initialTimer && !hasReceivedFirstToken) {
+              clearTimeout(initialTimer);
+              initialTimer = setTimeout(() => {
+                if (!hasReceivedFirstToken) {
+                  controller.abort();
+                }
+              }, firstTokenTimeoutMs);
+            }
+            continue;
+          }
+
+          if (trimmed === "data: [DONE]" || trimmed.includes("[DONE]")) {
+            isDone = true;
+            break;
+          }
+
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(trimmed.slice(6));
+              const delta = parsed.choices?.[0]?.delta;
+              const contentChunk =
+                (typeof delta?.content === "string" ? delta.content : "") ||
+                (typeof delta?.reasoning === "string" ? delta.reasoning : "") ||
+                (typeof delta?.reasoning_content === "string" ? delta.reasoning_content : "") ||
+                (typeof delta?.text === "string" ? delta.text : "");
+
+              if (contentChunk) {
+                if (!hasReceivedFirstToken) {
+                  hasReceivedFirstToken = true;
+                  if (initialTimer) {
+                    clearTimeout(initialTimer);
+                    initialTimer = null;
+                  }
+                }
+                accumulatedText += contentChunk;
+                onChunk(contentChunk);
+              }
+            } catch {
+              // ignore malformed JSON chunk
+            }
+          }
+        }
+      }
+
+      if (initialTimer) clearTimeout(initialTimer);
+      if (overallTimer) clearTimeout(overallTimer);
+
+      if (!accumulatedText.trim()) {
+        throw new Error("Streaming completed with empty content.");
+      }
+
+      return accumulatedText;
+    } catch (err: any) {
+      if (initialTimer) clearTimeout(initialTimer);
+      if (overallTimer) clearTimeout(overallTimer);
+      throw err;
+    }
+  }
+
+  // Real-time SSE Streaming Helper with 5-Level Smartness Ladder
   async function streamChatWithRetryAndFallback(
     req: Request,
     res: Response,
@@ -277,244 +543,257 @@ async function startServer() {
       sendSSE({ type: "ping" });
     }, 5000);
 
-    req.on("close", () => {
+    let isClientDisconnected = false;
+    res.on("close", () => {
+      if (!res.writableEnded) {
+        isClientDisconnected = true;
+      }
       clearInterval(pingInterval);
     });
 
-    let baseModels = [
-      "gemini-3.7-flash",
-      "gemini-flash-latest",
-      "gemini-3.5-flash-lite",
-      "gemini-3.1-flash-lite",
-    ];
+    const orKey = process.env.OPENROUTER_API_KEY?.trim();
+    const groqKey = process.env.GROQ_API_KEY?.trim();
+    const messages = formatGeminiContentsToOpenRouterMessages(contents, systemInstruction);
 
-    if (requestedModelId === "pro") {
-      baseModels = [
-        "gemini-3.1-pro-preview",
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
-        "gemini-3.5-flash-lite",
-      ];
-    } else if (requestedModelId === "mini") {
-      baseModels = [
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
-      ];
-    }
+    const finishStreamSuccess = (fullGeneratedText: string, searchSources: any[] = []) => {
+      clearInterval(pingInterval);
+      let thoughtProcess = "";
+      let cleanText = fullGeneratedText;
+      const closedThinkMatch = fullGeneratedText.match(/<(think|thought)>([\s\S]*?)<\/\1>/i);
+      if (closedThinkMatch) {
+        thoughtProcess = closedThinkMatch[2].trim();
+        cleanText = fullGeneratedText.replace(/<(think|thought)>([\s\S]*?)<\/\1>/gi, "").trim();
+      } else {
+        const openThinkMatch = fullGeneratedText.match(/<(think|thought)>([\s\S]*)/i);
+        if (openThinkMatch) {
+          thoughtProcess = openThinkMatch[2].trim();
+          cleanText = fullGeneratedText.replace(/<(think|thought)>([\s\S]*)?/gi, "").trim();
+        }
+      }
+      cleanText = cleanText.replace(/<\/?(think|thought)>/gi, "").trim();
 
-    let fullGeneratedText = "";
-    let lastError: any = null;
+      sendSSE({
+        type: "done",
+        thoughtProcess,
+        cleanText,
+        fullText: fullGeneratedText,
+        searchSources,
+      });
+      res.end();
+    };
 
-    // TIER 0: Primary Gemini Streaming
-    const lastUserMsg = Array.isArray(contents) && contents.length > 0 ? contents[contents.length - 1] : null;
-    let userPromptText = "";
-    if (lastUserMsg && Array.isArray(lastUserMsg.parts)) {
-      userPromptText = lastUserMsg.parts.map((p: any) => (typeof p === "string" ? p : p.text || "")).join(" ");
-    }
-
-    const isSearchRequested = /search|google|latest|news|today|current|weather|price|who is|what is|find online|sources|browse/i.test(userPromptText);
-
-    for (const model of baseModels) {
+    // LEVEL 1: PRIMARY MODEL (GLM 5.2 via OpenRouter) - Tried first on every new request
+    if (orKey && !isClientDisconnected) {
       try {
-        console.log(`[GNX Engine] Streaming with primary model: ${model}`);
-        let streamedInThisModel = false;
-        let modelText = "";
-        let searchSources: Array<{ title: string; url: string }> = [];
-        let sentSearchStart = false;
-
-        const genConfig: any = {
-          systemInstruction,
-        };
-
-        if (isSearchRequested) {
-          try {
-            genConfig.tools = [{ googleSearch: {} }];
-            sentSearchStart = true;
-          } catch (tErr) {
-            console.warn("[GNX Engine] Google Search tool config ignored:", tErr);
-          }
-        }
-
-        const responseStream = await ai.models.generateContentStream({
-          model,
-          contents,
-          config: genConfig,
-        });
-
+        console.log(`[GNX Smartness Ladder] Level 1 Streaming (Primary): Attempting ${LEVEL_1_PRIMARY_MODEL}...`);
         sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
+        sendSSE({ type: "reset" });
 
-        if (sentSearchStart) {
-          sendSSE({ type: "search_start" });
-        }
+        const fullText = await streamOpenAICompatibleSSE(
+          "https://openrouter.ai/api/v1/chat/completions",
+          orKey,
+          LEVEL_1_PRIMARY_MODEL,
+          messages,
+          (chunk) => sendSSE({ type: "chunk", text: chunk })
+        );
 
-        for await (const chunk of responseStream) {
-          // Check for grounding search metadata in Gemini chunk
-          const grounding = chunk.candidates?.[0]?.groundingMetadata;
-          if (grounding) {
-            const groundingChunks = grounding.groundingChunks || [];
-            const extracted = groundingChunks.map((c: any) => ({
-              title: c.web?.title || c.web?.uri || "Web Source",
-              url: c.web?.uri || "",
-            })).filter((s: any) => s.url);
-
-            if (extracted.length > 0) {
-              searchSources = extracted;
-              sendSSE({ type: "search_results", sources: searchSources });
-            }
-          }
-
-          const chunkText = chunk.text || "";
-          if (chunkText) {
-            if (!streamedInThisModel) {
-              streamedInThisModel = true;
-            }
-            modelText += chunkText;
-            sendSSE({ type: "chunk", text: chunkText });
-          }
-        }
-
-        if (modelText.trim().length > 0) {
-          fullGeneratedText = modelText;
-          clearInterval(pingInterval);
-
-          let thoughtProcess = "";
-          let cleanText = fullGeneratedText;
-          const closedThinkMatch = fullGeneratedText.match(/<(think|thought)>([\s\S]*?)<\/\1>/i);
-          if (closedThinkMatch) {
-            thoughtProcess = closedThinkMatch[2].trim();
-            cleanText = fullGeneratedText.replace(/<(think|thought)>([\s\S]*?)<\/\1>/gi, "").trim();
-          } else {
-            const openThinkMatch = fullGeneratedText.match(/<(think|thought)>([\s\S]*)/i);
-            if (openThinkMatch) {
-              thoughtProcess = openThinkMatch[2].trim();
-              cleanText = fullGeneratedText.replace(/<(think|thought)>([\s\S]*)?/gi, "").trim();
-            }
-          }
-          cleanText = cleanText.replace(/<\/?(think|thought)>/gi, "").trim();
-
-          sendSSE({
-            type: "done",
-            thoughtProcess,
-            cleanText,
-            fullText: fullGeneratedText,
-            searchSources,
-          });
-          res.end();
-          return;
-        }
-      } catch (error: any) {
-        lastError = error;
-        console.warn(`[GNX Engine] Gemini model ${model} streaming error:`, error?.message || error);
+        console.log(`[GNX Model Routing] Handled by Level 1: ${LEVEL_1_PRIMARY_MODEL} (OpenRouter)`);
+        finishStreamSuccess(fullText);
+        return;
+      } catch (err: any) {
+        console.log(`[GNX Smartness Ladder] Level 1 busy/rate-limited (${err.message}). Transitioning to Level 2...`);
         sendSSE({ type: "reset" });
       }
     }
 
-    // TIER 1 & TIER 2: OpenRouter Multi-Model Streaming Fallback
-    const hasOpenRouterKey = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim());
-    if (hasOpenRouterKey) {
-      console.log("[GNX Engine] Transitioning to OpenRouter streaming pipeline...");
-      const openRouterModels = [
-        "google/gemma-4-26b-a4b-it:free",
-        "google/gemma-4-31b-it:free",
-        "openai/gpt-oss-20b:free",
-        "nvidia/nemotron-3-nano-30b-a3b:free",
-        "nvidia/nemotron-nano-9b-v2:free",
-        "poolside/laguna-s-2.1:free",
-        "inclusionai/ling-3.0-tiny:free",
-        "openai/gpt-4o-mini",
-        "meta-llama/llama-3.3-70b-instruct",
-        "deepseek/deepseek-chat",
-      ];
-
-      const messages = formatGeminiContentsToOpenRouterMessages(contents, systemInstruction);
-
-      for (const openRouterModel of openRouterModels) {
+    // LEVEL 2: High-Capability Free OpenRouter Models
+    if (orKey && !isClientDisconnected) {
+      console.log(`[GNX Smartness Ladder] Level 2 Streaming: Attempting OpenRouter free pool...`);
+      for (const model of LEVEL_2_OPENROUTER_MODELS) {
+        if (isClientDisconnected) break;
         try {
-          console.log(`[GNX Engine] Trying OpenRouter streaming model: ${openRouterModel}`);
-          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY.trim()}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "https://ais-build.studio",
-              "X-Title": "Zen AI",
-            },
-            body: JSON.stringify({
-              model: openRouterModel,
-              messages,
-              stream: true,
-            }),
-          });
+          console.log(`[GNX Smartness Ladder] Level 2 trying: ${model}`);
+          sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
+          sendSSE({ type: "reset" });
 
-          if (!response.ok || !response.body) {
-            continue;
-          }
+          const fullText = await streamOpenAICompatibleSSE(
+            "https://openrouter.ai/api/v1/chat/completions",
+            orKey,
+            model,
+            messages,
+            (chunk) => sendSSE({ type: "chunk", text: chunk })
+          );
 
+          console.log(`[GNX Model Routing] Handled by Level 2: ${model} (OpenRouter)`);
+          finishStreamSuccess(fullText);
+          return;
+        } catch (err: any) {
+          console.log(`[GNX Smartness Ladder] Level 2 model ${model} skipped (${err.message})`);
+          sendSSE({ type: "reset" });
+        }
+      }
+      console.log(`[GNX Smartness Ladder] Level 2 complete. Transitioning to Level 3...`);
+    }
+
+    // LEVEL 3: High-Speed Free Groq Models
+    if (groqKey && !isClientDisconnected) {
+      console.log(`[GNX Smartness Ladder] Level 3 Streaming: Attempting Groq free pool...`);
+      for (const model of LEVEL_3_GROQ_MODELS) {
+        if (isClientDisconnected) break;
+        try {
+          console.log(`[GNX Smartness Ladder] Level 3 trying: ${model}`);
+          sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
+          sendSSE({ type: "reset" });
+
+          const fullText = await streamOpenAICompatibleSSE(
+            "https://api.groq.com/openai/v1/chat/completions",
+            groqKey,
+            model,
+            messages,
+            (chunk) => sendSSE({ type: "chunk", text: chunk })
+          );
+
+          console.log(`[GNX Model Routing] Handled by Level 3: ${model} (Groq)`);
+          finishStreamSuccess(fullText);
+          return;
+        } catch (err: any) {
+          console.log(`[GNX Smartness Ladder] Level 3 model ${model} skipped (${err.message})`);
+          sendSSE({ type: "reset" });
+        }
+      }
+      console.log(`[GNX Smartness Ladder] Level 3 complete. Transitioning to Level 4...`);
+    }
+
+    // LEVEL 4: Gemini Models
+    if (!isClientDisconnected) {
+      const geminiModels = getLevel4GeminiModels(requestedModelId);
+      console.log(`[GNX Smartness Ladder] Level 4 Streaming: Attempting Gemini pool...`);
+
+      const lastUserMsg = Array.isArray(contents) && contents.length > 0 ? contents[contents.length - 1] : null;
+      let userPromptText = "";
+      if (lastUserMsg && Array.isArray(lastUserMsg.parts)) {
+        userPromptText = lastUserMsg.parts.map((p: any) => (typeof p === "string" ? p : p.text || "")).join(" ");
+      }
+      const isSearchRequested = /search|google|latest|news|today|current|weather|price|who is|what is|find online|sources|browse/i.test(userPromptText);
+
+      for (const model of geminiModels) {
+        if (isClientDisconnected) break;
+        try {
+          console.log(`[GNX Smartness Ladder] Level 4 trying: ${model}`);
           sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
           sendSSE({ type: "reset" });
 
           let modelText = "";
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder("utf-8");
-          let buffer = "";
+          let searchSources: Array<{ title: string; url: string }> = [];
+          const genConfig: any = { systemInstruction };
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
+          if (isSearchRequested) {
+            try {
+              genConfig.tools = [{ googleSearch: {} }];
+              sendSSE({ type: "search_start" });
+            } catch {}
+          }
 
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
+          const responseStream = await ai.models.generateContentStream({
+            model,
+            contents,
+            config: genConfig,
+          });
 
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed || trimmed.startsWith(":")) continue;
-              if (trimmed === "data: [DONE]") break;
-              if (trimmed.startsWith("data: ")) {
-                try {
-                  const parsed = JSON.parse(trimmed.slice(6));
-                  const contentChunk = parsed.choices?.[0]?.delta?.content || "";
-                  if (contentChunk) {
-                    modelText += contentChunk;
-                    sendSSE({ type: "chunk", text: contentChunk });
-                  }
-                } catch {
-                  // ignore invalid JSON line
-                }
+          for await (const chunk of responseStream) {
+            const grounding = chunk.candidates?.[0]?.groundingMetadata;
+            if (grounding) {
+              const groundingChunks = grounding.groundingChunks || [];
+              const extracted = groundingChunks.map((c: any) => ({
+                title: c.web?.title || c.web?.uri || "Web Source",
+                url: c.web?.uri || "",
+              })).filter((s: any) => s.url);
+              if (extracted.length > 0) {
+                searchSources = extracted;
+                sendSSE({ type: "search_results", sources: searchSources });
               }
+            }
+
+            const chunkText = chunk.text || "";
+            if (chunkText) {
+              modelText += chunkText;
+              sendSSE({ type: "chunk", text: chunkText });
             }
           }
 
           if (modelText.trim().length > 0) {
-            fullGeneratedText = modelText;
-            clearInterval(pingInterval);
-
-            let thoughtProcess = "";
-            let cleanText = fullGeneratedText;
-            const closedThinkMatch = fullGeneratedText.match(/<(think|thought)>([\s\S]*?)<\/\1>/i);
-            if (closedThinkMatch) {
-              thoughtProcess = closedThinkMatch[2].trim();
-              cleanText = fullGeneratedText.replace(/<(think|thought)>([\s\S]*?)<\/\1>/gi, "").trim();
-            }
-            cleanText = cleanText.replace(/<\/?(think|thought)>/gi, "").trim();
-
-            sendSSE({ type: "done", thoughtProcess, cleanText, fullText: fullGeneratedText });
-            res.end();
+            console.log(`[GNX Model Routing] Handled by Level 4: ${model} (Gemini)`);
+            finishStreamSuccess(modelText, searchSources);
             return;
           }
-        } catch (orErr) {
-          console.warn(`[GNX Engine] OpenRouter model ${openRouterModel} streaming error:`, orErr);
+        } catch (err: any) {
+          console.log(`[GNX Smartness Ladder] Level 4 model ${model} skipped (${err.message})`);
+          sendSSE({ type: "reset" });
+        }
+      }
+      console.log(`[GNX Smartness Ladder] Level 4 complete. Transitioning to Level 5 (Safety Net)...`);
+    }
+
+    // LEVEL 5: Last-Resort Safety Net Streaming
+    if (!isClientDisconnected) {
+      console.log(`[GNX Smartness Ladder] Level 5 Streaming: Attempting safety net pool...`);
+      for (const entry of LEVEL_5_SAFETY_NET_MODELS) {
+        if (isClientDisconnected) break;
+        try {
+          sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
+          sendSSE({ type: "reset" });
+
+          if (entry.provider === "openrouter" && orKey) {
+            const fullText = await streamOpenAICompatibleSSE(
+              "https://openrouter.ai/api/v1/chat/completions",
+              orKey,
+              entry.model,
+              messages,
+              (chunk) => sendSSE({ type: "chunk", text: chunk })
+            );
+            console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (OpenRouter Safety Net)`);
+            finishStreamSuccess(fullText);
+            return;
+          } else if (entry.provider === "groq" && groqKey) {
+            const fullText = await streamOpenAICompatibleSSE(
+              "https://api.groq.com/openai/v1/chat/completions",
+              groqKey,
+              entry.model,
+              messages,
+              (chunk) => sendSSE({ type: "chunk", text: chunk })
+            );
+            console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (Groq Safety Net)`);
+            finishStreamSuccess(fullText);
+            return;
+          } else if (entry.provider === "gemini") {
+            const resContent = await ai.models.generateContent({
+              model: entry.model,
+              contents,
+              config: { systemInstruction },
+            });
+            if (resContent.text && resContent.text.trim()) {
+              sendSSE({ type: "chunk", text: resContent.text });
+              console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (Gemini Safety Net)`);
+              finishStreamSuccess(resContent.text);
+              return;
+            }
+          }
+        } catch (err: any) {
+          console.log(`[GNX Smartness Ladder] Level 5 model ${entry.model} failed: ${err.message}`);
+          sendSSE({ type: "reset" });
         }
       }
     }
 
     clearInterval(pingInterval);
-    const errMsg = lastError?.message || "Generation stalled or model rate limit reached. Click Retry to rebuild.";
-    sendSSE({ type: "error", error: errMsg });
+    sendSSE({ type: "error", error: "Generation unavailable across all Smartness Ladder tiers. Please retry in a moment." });
     res.end();
   }
+
+  // Health check endpoint
+  app.get("/api/health", (req: Request, res: Response) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
   // Zen Media Generation Engine Endpoint (Image & Video)
   app.post("/api/generate-media", async (req: Request, res: Response) => {
@@ -702,50 +981,31 @@ async function startServer() {
         return;
       }
 
-      // 2. Try Gemini with fast timeout
+      // 2. Generate title using the 5-Level Smartness Ladder
       try {
         const ai = getGemini();
-        const geminiPromise = ai.models.generateContent({
-          model: "gemini-3.7-flash",
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `You are an expert conversation title generator.
+        const titlePrompt = `You are an expert conversation title generator.
 Generate a concise 2 to 5 word title in Title Case that clearly and specifically describes the main topic, intent, or question of the user's message.
 
 CRITICAL RULES:
-1. SPECIFICITY & COMPLETENESS: Never output single vague words (such as "Becoming", "Learning", "Help", "Things") or incomplete fragments. The title MUST make complete sense standalone and immediately convey the exact subject of the conversation.
-   - "how can I become rich?" -> "Becoming Rich" or "Building Personal Wealth" (NEVER "Becoming")
-   - "how to learn python fast" -> "Learning Python Quickly" (NEVER "Learning" or "Python")
+1. SPECIFICITY & COMPLETENESS: Never output single vague words (such as "Becoming", "Learning", "Help", "Things") or incomplete fragments. The title MUST make complete sense standalone.
+   - "how can I become rich?" -> "Becoming Rich" or "Building Personal Wealth"
+   - "how to learn python fast" -> "Learning Python Quickly"
    - "why is the sky blue?" -> "Why the Sky Is Blue"
-   - "write a sci-fi story about a rogue time traveler" -> "Rogue Time Traveler Story"
    - "can you fix this react useEffect infinite loop?" -> "Fixing React useEffect Loop"
-   - "I feel really overwhelmed and burnt out from work" -> "Managing Work Burnout"
-2. GREETINGS: For casual greetings with no specific topic (e.g. "Hi", "Hello", "Hey there"), output "Casual Greeting" or "Quick Hello".
-3. SUBSTANTIVE REQUESTS: Prioritize clarity, meaning, and completeness over extreme brevity. Target 2 to 5 words.
-4. FORMAT: Return ONLY the 2-5 word Title Case title without quotes, trailing periods, asterisks, or prefixes like "Title:".
+2. GREETINGS: For casual greetings with no specific topic, output "Casual Greeting" or "Quick Hello".
+3. FORMAT: Return ONLY the 2-5 word Title Case title without quotes, trailing periods, asterisks, or prefixes like "Title:".
 
 User Message:
-"${cleanInput}"`,
-                },
-              ],
-            },
-          ],
-          config: {
-            maxOutputTokens: 40,
-            temperature: 0.2,
-          },
-        });
+"${cleanInput}"`;
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Title generation timeout")), 3500)
+        const result = await generateContentWithRetryAndFallback(
+          ai,
+          [{ role: "user", parts: [{ text: titlePrompt }] }],
+          "You are an expert conversation title generator. Return only 2-5 words in Title Case."
         );
 
-        const response: any = await Promise.race([geminiPromise, timeoutPromise]);
-
-        const rawText = response.text || "";
+        const rawText = result.text || "";
         const cleanTitle = rawText
           .replace(/^["'`*#\s]+|["'`*#\s]+$/g, "")
           .replace(/^Title:\s*/i, "")
@@ -755,39 +1015,12 @@ User Message:
         const wordsCount = cleanTitle.split(/\s+/).filter(Boolean).length;
         const vagueSingleWords = new Set(["becoming", "learning", "help", "things", "question", "chat", "code", "write", "how", "why", "what"]);
 
-        // Accept if title is valid, has 2+ words (or 1 non-vague word) and is well formed
         if (cleanTitle && cleanTitle.length >= 2 && cleanTitle.length <= 60 && (wordsCount >= 2 || !vagueSingleWords.has(cleanTitle.toLowerCase()))) {
           res.json({ title: toTitleCase(cleanTitle) });
           return;
         }
-      } catch (geminiErr: any) {
-        // Fall back to OpenRouter if configured
-        if (process.env.OPENROUTER_API_KEY) {
-          try {
-            const fallbackText = await callOpenRouterModel(
-              [
-                {
-                  role: "user",
-                  parts: [{
-                    text: `Generate a concise 2 to 5 word Title Case title that clearly and specifically describes the main topic or question of this message. Do NOT use single vague words or sentence fragments — the title should make sense standalone. If it is just a greeting, return "Casual Greeting". No quotes or period.\n\nUser Message:\n"${cleanInput}"`
-                  }],
-                },
-              ],
-              "You are a conversation title generator. Return only a 2-5 word Title Case title that specifically describes the topic. Never return a single vague word.",
-              "meta-llama/llama-3.3-70b-instruct"
-            );
-            const cleanFallback = fallbackText
-              ?.replace(/^["'`*#\s]+|["'`*#\s]+$/g, "")
-              .replace(/^Title:\s*/i, "")
-              .replace(/\.+$/, "")
-              .trim();
-            const wordsCount = cleanFallback ? cleanFallback.split(/\s+/).filter(Boolean).length : 0;
-            if (cleanFallback && cleanFallback.length >= 2 && cleanFallback.length <= 60 && wordsCount >= 2) {
-              res.json({ title: toTitleCase(cleanFallback) });
-              return;
-            }
-          } catch {}
-        }
+      } catch (ladderErr: any) {
+        console.warn("[GNX Engine] Title generation ladder error:", ladderErr?.message);
       }
 
       // Smart deterministic fallback generator

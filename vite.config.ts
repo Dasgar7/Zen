@@ -17,7 +17,7 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
-      allowedHosts: ['3000-i3iplflpevb9bwa9jjkyv-140f6094.us3.manus.computer'],
+      allowedHosts: true as const,
     },
   };
 });

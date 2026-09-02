@@ -1,0 +1,10 @@
+{
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/chat", "destination": "/api/chat.ts" },
+    { "source": "/api/auth/github", "destination": "/api/auth/github.ts" },
+    { "source": "/api/auth/github/callback", "destination": "/api/auth/github/callback.ts" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

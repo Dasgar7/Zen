@@ -43,10 +43,10 @@ export default async function handler(req: any, res: any) {
     const systemInstruction = "You are Genex, a supreme, omnipotent, and highly intelligent all-in-one AI companion inside Genex Studio. Provide direct, sophisticated, and perfectly clear answers. Embody supreme elegance and minimalism. Avoid any conversational fluff, speak with absolute clarity.";
 
     const modelsToTry = [
-      "gemini-3.6-flash",
-      "gemini-3.5-flash",
+      "gemini-3.7-flash",
+      "gemini-flash-latest",
+      "gemini-3.5-flash-lite",
       "gemini-3.1-flash-lite",
-      "gemini-flash-latest"
     ];
 
     let lastError: any = null;

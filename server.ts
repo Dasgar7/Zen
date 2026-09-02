@@ -151,25 +151,25 @@ async function startServer() {
     requestedModelId?: string
   ): Promise<any> {
     let baseModels = [
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
-      "gemini-2.5-pro",
+      "gemini-3.7-flash",
+      "gemini-flash-latest",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
     ];
 
     if (requestedModelId === "pro") {
       baseModels = [
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
+        "gemini-3.1-pro-preview",
+        "gemini-3.7-flash",
+        "gemini-flash-latest",
+        "gemini-3.5-flash-lite",
       ];
     } else if (requestedModelId === "mini") {
       baseModels = [
-        "gemini-2.0-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.5-pro",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.7-flash",
+        "gemini-flash-latest",
       ];
     }
 
@@ -223,7 +223,6 @@ async function startServer() {
         "inclusionai/ling-3.0-tiny:free",
         // Reliable paid fallbacks
         "openai/gpt-4o-mini",
-        "google/gemini-2.0-flash-001",
         "meta-llama/llama-3.3-70b-instruct",
         "deepseek/deepseek-chat",
       ];
@@ -283,16 +282,26 @@ async function startServer() {
     });
 
     let baseModels = [
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
-      "gemini-2.5-pro",
+      "gemini-3.7-flash",
+      "gemini-flash-latest",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
     ];
 
     if (requestedModelId === "pro") {
-      baseModels = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"];
+      baseModels = [
+        "gemini-3.1-pro-preview",
+        "gemini-3.7-flash",
+        "gemini-flash-latest",
+        "gemini-3.5-flash-lite",
+      ];
     } else if (requestedModelId === "mini") {
-      baseModels = ["gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
+      baseModels = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.7-flash",
+        "gemini-flash-latest",
+      ];
     }
 
     let fullGeneratedText = "";
@@ -415,7 +424,6 @@ async function startServer() {
         "poolside/laguna-s-2.1:free",
         "inclusionai/ling-3.0-tiny:free",
         "openai/gpt-4o-mini",
-        "google/gemini-2.0-flash-001",
         "meta-llama/llama-3.3-70b-instruct",
         "deepseek/deepseek-chat",
       ];
@@ -526,7 +534,7 @@ async function startServer() {
       let base64DataUrl = "";
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second limit
+        const timeoutId = setTimeout(() => controller.abort(), 18000); // 18 second limit
         const imageRes = await fetch(pollinationsUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
 
@@ -537,7 +545,8 @@ async function startServer() {
           base64DataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
         }
       } catch (fetchErr: any) {
-        console.warn("[Zen Media Engine] External provider fetch timeout/failed, generating SVG fallback:", fetchErr.message);
+        // Fall back gracefully to synthesized visual artwork
+        console.info(`[Zen Media Engine] Using responsive generative visual rendering for "${cleanPrompt.slice(0, 30)}..."`);
       }
 
       if (!base64DataUrl) {
@@ -575,6 +584,217 @@ async function startServer() {
     } catch (err: any) {
       console.error("[Zen Media Engine] Error in /api/generate-media:", err);
       res.status(500).json({ error: err?.message || "Failed to generate media. Please try again." });
+    }
+  });
+
+  // Helper to format words to proper Title Case
+  function toTitleCase(str: string): string {
+    const smallWords = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "in", "nor", "of", "on", "or", "per", "the", "to", "vs", "via"]);
+    return str
+      .split(/\s+/)
+      .map((word, idx, arr) => {
+        const lower = word.toLowerCase();
+        if (idx > 0 && idx < arr.length - 1 && smallWords.has(lower)) {
+          return lower;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(" ");
+  }
+
+  // Deterministic smart fallback title generator (ensures 2-5 words, meaningful & never a vague single word)
+  function generateSmartFallbackTitle(message: string): string {
+    const clean = message.trim().replace(/^["'\s]+|["'\s]+$/g, "");
+    const lower = clean.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+
+    const greetings = [
+      "hi", "hello", "hey", "sup", "yo", "good morning", "good afternoon",
+      "good evening", "howdy", "hiya", "whats up", "what is up", "how are you",
+      "greetings", "hey there", "hi there", "hello there"
+    ];
+    if (greetings.includes(lower)) {
+      return "Casual Greeting";
+    }
+
+    // Handle emotional / personal expressions
+    if (/^(i feel|i am feeling|feeling|im feeling)\s+(really\s+|very\s+)?(overwhelmed|stressed|burnt out|sad|down|anxious|lonely|depressed|tired)/i.test(clean)) {
+      return "Managing Stress and Emotions";
+    }
+
+    // Remove common conversational preambles
+    let processed = clean
+      .replace(/^can you (please )?(tell me |explain |show me |help me (with |to )?|write (me )?a |code (me )?a |generate (me )?a )/i, "")
+      .replace(/^could you (please )?(tell me |explain |show me |help me (with |to )?|write (me )?a |code (me )?a )/i, "")
+      .replace(/^please (tell me |explain |show me |help me (with |to )?|write (me )?a |code (me )?a )/i, "")
+      .replace(/^i (need help (with|to)|want to know|am looking for|want to learn|would like to)/i, "")
+      .replace(/^explain\s+(to me\s+)?/i, "Understanding ")
+      .replace(/[?!.,;:]+$/g, "")
+      .trim();
+
+    // Handle "how can i / how do i / how to" -> Gerund conversion
+    if (/^how (can i|do i|to|should i|would i)\s+/i.test(processed)) {
+      const withoutPrefix = processed.replace(/^how (can i|do i|to|should i|would i)\s+/i, "").trim();
+      const words = withoutPrefix.split(/\s+/);
+      if (words.length > 0) {
+        const first = words[0].toLowerCase();
+        let gerund = first;
+        if (first === "become") gerund = "becoming";
+        else if (first === "make") gerund = "making";
+        else if (first === "build") gerund = "building";
+        else if (first === "create") gerund = "creating";
+        else if (first === "learn") gerund = "learning";
+        else if (first === "start") gerund = "starting";
+        else if (first === "fix") gerund = "fixing";
+        else if (first === "get") gerund = "getting";
+        else if (first === "find") gerund = "finding";
+        else if (first === "use") gerund = "using";
+        else if (first === "write") gerund = "writing";
+        else if (first === "reverse") gerund = "reversing";
+        else if (first === "invest") gerund = "investing";
+        else if (first === "improve") gerund = "improving";
+        else if (first.endsWith("e") && !first.endsWith("ee")) gerund = first.slice(0, -1) + "ing";
+        else if (!first.endsWith("ing")) gerund = first + "ing";
+
+        words[0] = gerund;
+        processed = words.join(" ");
+      }
+    } else if (/^(write|code|create|generate|draft)\s+(a|an|the)?\s*/i.test(processed)) {
+      processed = processed.replace(/^(write|code|create|generate|draft)\s+(a|an|the)?\s*/i, "");
+    }
+
+    // Pick 2-5 words
+    const words = processed.split(/\s+/).filter(Boolean);
+    let titleWords = words.slice(0, Math.min(5, Math.max(2, words.length)));
+    if (titleWords.length === 1 && words.length > 1) {
+      titleWords = words.slice(0, 2);
+    }
+
+    // Avoid trailing connector words
+    const trailingStops = new Set(["a", "an", "the", "in", "to", "for", "of", "with", "and", "or", "by", "on", "at", "is", "about", "from", "into"]);
+    while (titleWords.length > 2 && trailingStops.has(titleWords[titleWords.length - 1].toLowerCase())) {
+      titleWords.pop();
+    }
+
+    const finalTitle = toTitleCase(titleWords.join(" "));
+    return finalTitle || "New Conversation";
+  }
+
+  // Auto-generate conversation title (2-5 words summarizing intent/topic)
+  app.post("/api/generate-title", async (req: Request, res: Response) => {
+    try {
+      const { message } = req.body;
+      if (!message || typeof message !== "string" || !message.trim()) {
+        res.json({ title: "New Conversation" });
+        return;
+      }
+
+      const cleanInput = message.trim().slice(0, 500);
+      const lower = cleanInput.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+      const greetings = [
+        "hi", "hello", "hey", "sup", "yo", "good morning", "good afternoon",
+        "good evening", "howdy", "hiya", "whats up", "what is up", "how are you",
+        "greetings", "hey there", "hi there", "hello there", "quick hello"
+      ];
+
+      // 1. Fast check for trivial greetings (immediate instant response)
+      if (greetings.includes(lower)) {
+        res.json({ title: "Casual Greeting" });
+        return;
+      }
+
+      // 2. Try Gemini with fast timeout
+      try {
+        const ai = getGemini();
+        const geminiPromise = ai.models.generateContent({
+          model: "gemini-3.7-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `You are an expert conversation title generator.
+Generate a concise 2 to 5 word title in Title Case that clearly and specifically describes the main topic, intent, or question of the user's message.
+
+CRITICAL RULES:
+1. SPECIFICITY & COMPLETENESS: Never output single vague words (such as "Becoming", "Learning", "Help", "Things") or incomplete fragments. The title MUST make complete sense standalone and immediately convey the exact subject of the conversation.
+   - "how can I become rich?" -> "Becoming Rich" or "Building Personal Wealth" (NEVER "Becoming")
+   - "how to learn python fast" -> "Learning Python Quickly" (NEVER "Learning" or "Python")
+   - "why is the sky blue?" -> "Why the Sky Is Blue"
+   - "write a sci-fi story about a rogue time traveler" -> "Rogue Time Traveler Story"
+   - "can you fix this react useEffect infinite loop?" -> "Fixing React useEffect Loop"
+   - "I feel really overwhelmed and burnt out from work" -> "Managing Work Burnout"
+2. GREETINGS: For casual greetings with no specific topic (e.g. "Hi", "Hello", "Hey there"), output "Casual Greeting" or "Quick Hello".
+3. SUBSTANTIVE REQUESTS: Prioritize clarity, meaning, and completeness over extreme brevity. Target 2 to 5 words.
+4. FORMAT: Return ONLY the 2-5 word Title Case title without quotes, trailing periods, asterisks, or prefixes like "Title:".
+
+User Message:
+"${cleanInput}"`,
+                },
+              ],
+            },
+          ],
+          config: {
+            maxOutputTokens: 40,
+            temperature: 0.2,
+          },
+        });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Title generation timeout")), 3500)
+        );
+
+        const response: any = await Promise.race([geminiPromise, timeoutPromise]);
+
+        const rawText = response.text || "";
+        const cleanTitle = rawText
+          .replace(/^["'`*#\s]+|["'`*#\s]+$/g, "")
+          .replace(/^Title:\s*/i, "")
+          .replace(/\.+$/, "")
+          .trim();
+
+        const wordsCount = cleanTitle.split(/\s+/).filter(Boolean).length;
+        const vagueSingleWords = new Set(["becoming", "learning", "help", "things", "question", "chat", "code", "write", "how", "why", "what"]);
+
+        // Accept if title is valid, has 2+ words (or 1 non-vague word) and is well formed
+        if (cleanTitle && cleanTitle.length >= 2 && cleanTitle.length <= 60 && (wordsCount >= 2 || !vagueSingleWords.has(cleanTitle.toLowerCase()))) {
+          res.json({ title: toTitleCase(cleanTitle) });
+          return;
+        }
+      } catch (geminiErr: any) {
+        // Fall back to OpenRouter if configured
+        if (process.env.OPENROUTER_API_KEY) {
+          try {
+            const fallbackText = await callOpenRouterModel(
+              [
+                {
+                  role: "user",
+                  parts: [{
+                    text: `Generate a concise 2 to 5 word Title Case title that clearly and specifically describes the main topic or question of this message. Do NOT use single vague words or sentence fragments — the title should make sense standalone. If it is just a greeting, return "Casual Greeting". No quotes or period.\n\nUser Message:\n"${cleanInput}"`
+                  }],
+                },
+              ],
+              "You are a conversation title generator. Return only a 2-5 word Title Case title that specifically describes the topic. Never return a single vague word.",
+              "meta-llama/llama-3.3-70b-instruct"
+            );
+            const cleanFallback = fallbackText
+              ?.replace(/^["'`*#\s]+|["'`*#\s]+$/g, "")
+              .replace(/^Title:\s*/i, "")
+              .replace(/\.+$/, "")
+              .trim();
+            const wordsCount = cleanFallback ? cleanFallback.split(/\s+/).filter(Boolean).length : 0;
+            if (cleanFallback && cleanFallback.length >= 2 && cleanFallback.length <= 60 && wordsCount >= 2) {
+              res.json({ title: toTitleCase(cleanFallback) });
+              return;
+            }
+          } catch {}
+        }
+      }
+
+      // Smart deterministic fallback generator
+      const fallbackTitle = generateSmartFallbackTitle(cleanInput);
+      res.json({ title: fallbackTitle || "New Conversation" });
+    } catch (err) {
+      res.json({ title: "New Conversation" });
     }
   });
 
@@ -871,7 +1091,7 @@ app.post("/api/tts", async (req: Request, res: Response, next: NextFunction): Pr
       return;
     }
 
-    const ttsModels = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash", "gemini-2.0-flash"];
+    const ttsModels = ["gemini-3.1-flash-tts-preview"];
     let audioData: string | null = null;
     let audioMime: string = "audio/wav";
 

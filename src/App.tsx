@@ -11,6 +11,7 @@ import { AuthModal } from "./components/AuthModal";
 import { PricingModal } from "./components/PricingModal";
 import { CodeBlock } from "./components/CodeBlock";
 import { CosmicBackground } from "./components/CosmicBackground";
+import { MediaDisplayBlock } from "./components/MediaDisplayBlock";
 import { auth, signOut, onAuthStateChanged } from "./lib/firebase";
 
 const PlusSparkleIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
@@ -1305,6 +1306,9 @@ export default function App() {
   // Saved Chat Sessions for logged-in users
   const [savedChats, setSavedChats] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [currentChatTitle, setCurrentChatTitle] = useState<string>("");
+  const [isHeaderTitleEditing, setIsHeaderTitleEditing] = useState<boolean>(false);
+  const [headerEditingTitle, setHeaderEditingTitle] = useState<string>("");
   const [isPrivateChat, setIsPrivateChat] = useState<boolean>(false);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const [bannerType, setBannerType] = useState<"glitch" | "info">("glitch");
@@ -1506,6 +1510,36 @@ ${code}
 
 
 
+  // Background title generation for new chats
+  const generateTitleInBackground = async (firstQuery: string, chatId: string) => {
+    try {
+      const res = await fetch("/api/generate-title", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: firstQuery }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.title && typeof data.title === "string" && data.title.trim()) {
+          const cleanTitle = data.title.trim();
+          setCurrentChatTitle(cleanTitle);
+          setSavedChats((prev) => {
+            const updated = prev.map((c) => (c.id === chatId ? { ...c, title: cleanTitle } : c));
+            const key = getStorageKey(userEmail);
+            try {
+              localStorage.setItem(key, JSON.stringify(updated));
+            } catch (e) {
+              console.warn("Failed to persist generated title:", e);
+            }
+            return updated;
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Background title generation failed:", err);
+    }
+  };
+
   // Sync current conversation history into saved chats
   useEffect(() => {
     if (history.length === 0 || isPrivateChat || isLoading) return;
@@ -1532,7 +1566,7 @@ ${code}
         }
         const updatedChat: ChatSession = {
           ...existing,
-          title: existing.title === "New Chat" ? snippet : existing.title,
+          title: currentChatTitle || (existing.title === "New Chat" ? snippet : existing.title),
           messages: history,
           updatedAt: Date.now(),
         };
@@ -1540,7 +1574,7 @@ ${code}
       } else {
         const newChat: ChatSession = {
           id: currentId,
-          title: snippet || "New Chat",
+          title: currentChatTitle || snippet || "New Chat",
           messages: history,
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -1556,12 +1590,30 @@ ${code}
 
       return updated;
     });
-  }, [history, userEmail, isPrivateChat, activeChatId, isLoading]);
+  }, [history, userEmail, isPrivateChat, activeChatId, isLoading, currentChatTitle]);
 
   const createNewChat = () => {
     setIsPrivateChat(false);
     setActiveChatId(null);
+    setCurrentChatTitle("");
+    setIsHeaderTitleEditing(false);
     clearChat();
+  };
+
+  const saveHeaderRename = () => {
+    const newTitle = headerEditingTitle.trim() || currentChatTitle || "Untitled Chat";
+    setCurrentChatTitle(newTitle);
+    setIsHeaderTitleEditing(false);
+    if (activeChatId) {
+      const key = getStorageKey(userEmail);
+      const next = savedChats.map((c) => (c.id === activeChatId ? { ...c, title: newTitle } : c));
+      setSavedChats(next);
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch (err) {
+        console.warn(err);
+      }
+    }
   };
 
   const togglePrivateMode = () => {
@@ -1630,6 +1682,8 @@ ${code}
   const handleSelectChat = (session: ChatSession) => {
     setIsPrivateChat(false);
     setActiveChatId(session.id);
+    setCurrentChatTitle(session.title || "Conversation");
+    setIsHeaderTitleEditing(false);
     setHistory(session.messages);
     setAttachedFiles([]);
     setError(null);
@@ -1665,6 +1719,9 @@ ${code}
     if (e) e.preventDefault();
     const key = getStorageKey(userEmail);
     const newTitle = editingTitle.trim() || "Untitled Chat";
+    if (chatId === activeChatId) {
+      setCurrentChatTitle(newTitle);
+    }
     const next = savedChats.map((c) => (c.id === chatId ? { ...c, title: newTitle } : c));
     setSavedChats(next);
     try {
@@ -1928,7 +1985,8 @@ ${code}
     prompt: string,
     mediaType: "image" | "video",
     signal: AbortSignal,
-    existingImageUrl?: string
+    existingImageUrl?: string,
+    isRegeneration?: boolean
   ) => {
     setLiveModeTag("create" as any);
     setLivePhase("working");
@@ -1938,16 +1996,38 @@ ${code}
 
     const startTime = Date.now();
 
-    // Create model placeholder message
-    setHistory((prev) => [
-      ...prev,
-      {
-        role: "model",
-        parts: [{ text: "" }],
-        modeTag: "create",
-        buildDuration: 0,
-      },
-    ]);
+    // Create or update model placeholder message
+    if (!isRegeneration) {
+      setHistory((prev) => [
+        ...prev,
+        {
+          role: "model",
+          parts: [{ text: "" }],
+          modeTag: "create",
+          mediaType,
+          mediaPrompt: prompt,
+          buildDuration: 0,
+        },
+      ]);
+    } else {
+      setHistory((prev) => {
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        if (lastIdx >= 0 && updated[lastIdx].role === "model") {
+          updated[lastIdx] = {
+            ...updated[lastIdx],
+            parts: [{ text: "" }],
+            modeTag: "create",
+            mediaType,
+            mediaPrompt: prompt,
+            mediaUrl: undefined,
+            mediaError: undefined,
+            buildDuration: 0,
+          };
+        }
+        return updated;
+      });
+    }
 
     try {
       const response = await fetch("/api/generate-media", {
@@ -1983,6 +2063,7 @@ ${code}
             mediaType,
             mediaUrl: finalMediaUrl,
             mediaPrompt: prompt,
+            mediaError: false,
             buildDuration: durationSeconds,
           };
         }
@@ -2016,7 +2097,7 @@ ${code}
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsLoading(true);
-    handleGenerateMediaRequest(prompt, mediaType, controller.signal).finally(() => {
+    handleGenerateMediaRequest(prompt, mediaType, controller.signal, undefined, true).finally(() => {
       setIsLoading(false);
       abortControllerRef.current = null;
     });
@@ -2074,6 +2155,30 @@ ${code}
     // Notify user to login if not signed in when sending first message
     if (!isLoggedIn && history.length === 0) {
       setShowLoginNotice(true);
+    }
+
+    // Auto-generate title for new conversation
+    if (history.length === 0) {
+      let thisChatId = activeChatId;
+      if (!thisChatId) {
+        thisChatId = "chat_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+        setActiveChatId(thisChatId);
+      }
+      const rawPrompt = (query || "").trim();
+      const lower = rawPrompt.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+      const greetings = ["hi", "hello", "hey", "sup", "yo", "good morning", "good afternoon", "good evening", "howdy", "hiya", "whats up", "what is up", "how are you", "greetings", "hey there", "hi there"];
+      let initialTitle = "New Conversation";
+      if (greetings.includes(lower)) {
+        initialTitle = "Casual Greeting";
+      } else if (rawPrompt) {
+        const words = rawPrompt.split(/\s+/).slice(0, 5).join(" ");
+        initialTitle = words.length > 32 ? words.slice(0, 32) + "..." : words;
+      }
+      setCurrentChatTitle(initialTitle);
+
+      if (query) {
+        void generateTitleInBackground(query, thisChatId);
+      }
     }
 
     setHistory((prev) => [...prev, userMessage]);
@@ -2583,115 +2688,22 @@ ${code}
   };
 
   const renderMediaBlock = (msg: Message) => {
-    if (msg.mediaError) {
-      return (
-        <div className="my-3 p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300 max-w-lg space-y-2 select-none">
-          <div className="flex items-center space-x-2 font-semibold text-sm">
-            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-            <span>Generation Failed</span>
-          </div>
-          <p className="text-xs text-red-600 dark:text-red-400">
-            Failed to generate {msg.mediaType || "media"}. Please check your prompt or connection and try again.
-          </p>
-          <button
-            type="button"
-            onClick={() => handleRegenerateMedia(msg.mediaPrompt || "", msg.mediaType || "image")}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Try again</span>
-          </button>
-        </div>
-      );
+    // Only render media block if this message has a media URL, media error, or is in create mode
+    if (!msg.mediaUrl && !msg.mediaError && msg.modeTag !== "create" && !msg.mediaType) {
+      return null;
     }
 
-    if (!msg.mediaUrl) return null;
-
-    const isVideo = msg.mediaType === "video";
-
     return (
-      <div className="flex flex-col space-y-3 my-3 max-w-lg">
-        <div className="relative group rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-lg bg-black">
-          {isVideo ? (
-            <video
-              src={msg.mediaUrl}
-              controls
-              autoPlay
-              loop
-              playsInline
-              className="w-full h-auto rounded-2xl max-h-[480px] object-cover"
-            />
-          ) : (
-            <img
-              src={msg.mediaUrl}
-              alt={msg.mediaPrompt || "Generated Media"}
-              referrerPolicy="no-referrer"
-              className="w-full h-auto object-cover rounded-2xl transition-transform duration-300 group-hover:scale-[1.01]"
-            />
-          )}
-
-          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1.5 bg-black/70 backdrop-blur-md p-1.5 rounded-xl text-white shadow-md">
-            <a
-              href={msg.mediaUrl}
-              download={isVideo ? `zen_video_${Date.now()}.webm` : `zen_image_${Date.now()}.jpg`}
-              className="p-1.5 rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
-              title="Download file"
-            >
-              <Download className="w-4 h-4" />
-            </a>
-          </div>
-        </div>
-
-        {/* Primary Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => handleRegenerateMedia(msg.mediaPrompt || "", isVideo ? "video" : "image")}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium transition-colors cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Regenerate</span>
-          </button>
-
-          {!isVideo && (
-            <button
-              type="button"
-              onClick={() => handleAnimateImageToVideo(msg.mediaPrompt || "", msg.mediaUrl!)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 font-semibold transition-colors cursor-pointer"
-            >
-              <Play className="w-3.5 h-3.5 text-purple-500" />
-              <span>Animate into video</span>
-            </button>
-          )}
-
-          <a
-            href={msg.mediaUrl}
-            download={isVideo ? `zen_video_${Date.now()}.webm` : `zen_image_${Date.now()}.jpg`}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Download</span>
-          </a>
-        </div>
-
-        {/* Refinement Options */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-[11px] font-semibold text-zinc-400">Variations:</span>
-          {(isVideo
-            ? ["Slower motion", "Cyberpunk style", "3D camera orbit", "Warm sunset glow"]
-            : ["More vibrant colors", "Cinematic lighting", "Pixel art style", "Minimalist aesthetic"]
-          ).map((refineText, rIdx) => (
-            <button
-              key={rIdx}
-              type="button"
-              onClick={() => handleRefinePrompt(`${msg.mediaPrompt || "scene"}, ${refineText}`, isVideo ? "video" : "image")}
-              className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-100/80 dark:bg-zinc-800/60 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors cursor-pointer"
-            >
-              + {refineText}
-            </button>
-          ))}
-        </div>
-      </div>
+      <MediaDisplayBlock
+        mediaType={msg.mediaType || "image"}
+        mediaUrl={msg.mediaUrl}
+        mediaPrompt={msg.mediaPrompt}
+        mediaError={msg.mediaError}
+        isLoading={isLoading}
+        onRegenerate={handleRegenerateMedia}
+        onAnimateToVideo={handleAnimateImageToVideo}
+        onRefinePrompt={handleRefinePrompt}
+      />
     );
   };
 
@@ -2743,6 +2755,11 @@ ${code}
   };
 
   const hasChatStarted = history.length > 0;
+  const displayHeaderTitle =
+    currentChatTitle ||
+    (activeChatId ? savedChats.find((c) => c.id === activeChatId)?.title : "") ||
+    (history.find((m) => m.role === "user")?.parts.find((p) => p.text)?.text?.slice(0, 32) + "...") ||
+    "Conversation";
 
   return (
     <main className={`h-screen w-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden font-sans relative selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-zinc-100 transition-all duration-200 ease-out ${isMenuOpen ? "md:pl-[280px]" : "md:pl-16"}`}>
@@ -3176,6 +3193,45 @@ ${code}
         </div>
       )}
 
+      {/* Desktop Top Header Title (Auto-generated chat title with click to rename) */}
+      {hasChatStarted && (
+        <div className={`hidden md:flex fixed top-3.5 z-30 items-center justify-center transition-all duration-200 ease-out left-1/2 -translate-x-1/2 max-w-[520px]`}>
+          {isHeaderTitleEditing ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveHeaderRename();
+              }}
+              className="flex items-center"
+            >
+              <input
+                type="text"
+                value={headerEditingTitle}
+                onChange={(e) => setHeaderEditingTitle(e.target.value)}
+                onBlur={saveHeaderRename}
+                autoFocus
+                maxLength={60}
+                className="px-3 py-1 text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-[#48A04C] shadow-xs w-full max-w-[360px]"
+              />
+            </form>
+          ) : (
+            <div
+              onClick={() => {
+                setHeaderEditingTitle(displayHeaderTitle);
+                setIsHeaderTitleEditing(true);
+              }}
+              className="group flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer select-none"
+              title="Click to rename chat"
+            >
+              <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate max-w-[380px] font-sans">
+                {displayHeaderTitle}
+              </span>
+              <Pencil className="w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Desktop Top Right Header Area (Upgrade + Private Chat) */}
       <div className="hidden md:flex fixed top-3.5 right-4 z-30 items-center gap-3">
         <button
@@ -3224,13 +3280,51 @@ ${code}
           </motion.button>
         </div>
 
-        {/* Center branding (Perfect absolute centering) */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 select-none pointer-events-none">
-          <GenexLogo className="w-5.5 h-5.5 pointer-events-auto" />
-          <span className="text-black dark:text-white font-bold text-lg sm:text-xl tracking-tight pointer-events-auto font-sans">
-            Zen
-          </span>
-        </div>
+        {/* Center branding or Auto-generated Chat Title */}
+        {!hasChatStarted ? (
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 select-none pointer-events-none">
+            <GenexLogo className="w-5.5 h-5.5 pointer-events-auto" />
+            <span className="text-black dark:text-white font-bold text-lg sm:text-xl tracking-tight pointer-events-auto font-sans">
+              Zen
+            </span>
+          </div>
+        ) : (
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center max-w-[55%] xs:max-w-[62%] sm:max-w-[68%] select-none z-10">
+            {isHeaderTitleEditing ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveHeaderRename();
+                }}
+                className="flex items-center"
+              >
+                <input
+                  type="text"
+                  value={headerEditingTitle}
+                  onChange={(e) => setHeaderEditingTitle(e.target.value)}
+                  onBlur={saveHeaderRename}
+                  autoFocus
+                  maxLength={60}
+                  className="px-2.5 py-1 text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg outline-none focus:ring-1.5 focus:ring-[#48A04C] w-full max-w-[200px] xs:max-w-[250px]"
+                />
+              </form>
+            ) : (
+              <div
+                onClick={() => {
+                  setHeaderEditingTitle(displayHeaderTitle);
+                  setIsHeaderTitleEditing(true);
+                }}
+                className="group flex items-center space-x-1.5 px-2 py-1 rounded-lg hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                title="Click to rename chat"
+              >
+                <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate max-w-[160px] xs:max-w-[210px] sm:max-w-[280px] font-sans">
+                  {displayHeaderTitle}
+                </span>
+                <Pencil className="w-3.5 h-3.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Right action / New chat & Share / Avatar */}
         <div className="flex items-center gap-2.5">
@@ -3275,24 +3369,26 @@ ${code}
             </>
           )}
 
-          {isLoggedIn ? (
-            <motion.button
-              onClick={() => setIsMenuOpen(true)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-8 h-8 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white font-bold text-xs shadow-xs cursor-pointer select-none uppercase ml-1"
-              title="Account Menu"
-            >
-              {userName ? userName.trim().charAt(0).toUpperCase() : "U"}
-            </motion.button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsAuthOpen(true)}
-              className="h-8 px-3 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold text-xs tracking-wide transition-colors cursor-pointer shadow-xs ml-1 flex items-center justify-center border border-zinc-900 dark:border-zinc-100"
-            >
-              Login
-            </button>
+          {!hasChatStarted && (
+            isLoggedIn ? (
+              <motion.button
+                onClick={() => setIsMenuOpen(true)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-8 h-8 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white font-bold text-xs shadow-xs cursor-pointer select-none uppercase ml-1"
+                title="Account Menu"
+              >
+                {userName ? userName.trim().charAt(0).toUpperCase() : "U"}
+              </motion.button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAuthOpen(true)}
+                className="h-8 px-3 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold text-xs tracking-wide transition-colors cursor-pointer shadow-xs ml-1 flex items-center justify-center border border-zinc-900 dark:border-zinc-100"
+              >
+                Login
+              </button>
+            )
           )}
         </div>
       </header>
@@ -3411,7 +3507,7 @@ ${code}
 
                       <div className={`p-3 rounded-2xl text-xs sm:text-sm ${
                         msg.role === "user"
-                          ? "bg-black text-white self-end max-w-[88%]"
+                          ? "bg-zinc-800 text-white self-end max-w-[88%]"
                           : "bg-transparent text-zinc-900 dark:text-zinc-100 self-start w-full"
                       }`}>
                         {renderMessageContent(msg)}
@@ -3632,12 +3728,12 @@ ${code}
                 <div
                   style={
                     msg.role === "user"
-                      ? { backgroundColor: "#000000", color: "#ffffff", opacity: 1 }
+                      ? { backgroundColor: "#27272a", color: "#ffffff", opacity: 1 }
                       : { backgroundColor: "transparent" }
                   }
                   className={
                     msg.role === "user"
-                      ? "max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 self-end font-medium text-base sm:text-lg md:text-[1.125rem] leading-relaxed break-words border-0 shadow-none bg-black text-white opacity-100"
+                      ? "max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 self-end font-medium text-base sm:text-lg md:text-[1.125rem] leading-relaxed break-words border-0 shadow-none bg-zinc-800 text-white opacity-100"
                       : "w-full max-w-none bg-transparent px-0 py-2 text-zinc-900 dark:text-zinc-100 font-medium text-base sm:text-lg md:text-[1.125rem] leading-relaxed self-start"
                   }
                 >
@@ -4147,72 +4243,50 @@ ${code}
             </p>
           )}
 
-          {/* Quick Action Pills - Kimi / ChatGPT Style */}
-          <div className="flex items-center justify-center flex-wrap gap-2 mt-3 select-none">
-            <button
-              type="button"
-              onClick={() => {
-                const next = !isCreateMediaMode;
-                setIsCreateMediaMode(next);
-                if (next) {
-                  setTimeout(() => inputRef.current?.focus(), 50);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center space-x-1.5 transition-all duration-200 cursor-pointer border shadow-xs ${
-                isCreateMediaMode
-                  ? "bg-purple-500/15 dark:bg-purple-500/25 text-purple-600 dark:text-purple-300 border-purple-500/50"
-                  : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-              }`}
-              title="Toggle Create Media Mode"
-            >
-              <Wand2 className={`w-3.5 h-3.5 ${isCreateMediaMode ? "text-purple-500 dark:text-purple-300" : "text-purple-500"}`} />
-              <span>Create</span>
-            </button>
+          {/* Quick Action Pills - Design & Web Dev (Only visible on empty home screen before chat starts) */}
+          {!hasChatStarted && (
+            <div className="flex items-center justify-center flex-wrap gap-3 mt-3 select-none">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !isCreateMediaMode;
+                  setIsCreateMediaMode(next);
+                  if (next) {
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  }
+                }}
+                className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                  isCreateMediaMode
+                    ? "bg-purple-500/15 dark:bg-purple-500/25 text-purple-600 dark:text-purple-300 border-purple-500/50"
+                    : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                }`}
+                title="Toggle Design Mode"
+              >
+                <Wand2 className={`w-4 h-4 ${isCreateMediaMode ? "text-purple-500 dark:text-purple-300" : "text-purple-500"}`} />
+                <span>Design</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                const next = !isWebDevMode;
-                setIsWebDevMode(next);
-                if (next) {
-                  setTimeout(() => inputRef.current?.focus(), 50);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center space-x-1.5 transition-all duration-200 cursor-pointer border shadow-xs ${
-                isWebDevMode
-                  ? "bg-[#48A04C]/15 dark:bg-[#48A04C]/25 text-[#48A04C] dark:text-[#52b857] border-[#48A04C]/50"
-                  : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-              }`}
-              title="Toggle Web Dev Mode"
-            >
-              <Code2 className={`w-3.5 h-3.5 ${isWebDevMode ? "text-[#48A04C] dark:text-[#52b857]" : "text-emerald-500"}`} />
-              <span>Web Dev</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setInput("Start a new project: ");
-                setTimeout(() => inputRef.current?.focus(), 50);
-              }}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer shadow-xs flex items-center space-x-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>New Project</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setInput("Fix a bug in this code: ");
-                setTimeout(() => inputRef.current?.focus(), 50);
-              }}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer shadow-xs flex items-center space-x-1.5"
-            >
-              <Pencil className="w-3.5 h-3.5 text-blue-500" />
-              <span>Fix a Bug</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !isWebDevMode;
+                  setIsWebDevMode(next);
+                  if (next) {
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  }
+                }}
+                className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                  isWebDevMode
+                    ? "bg-[#48A04C]/15 dark:bg-[#48A04C]/25 text-[#48A04C] dark:text-[#52b857] border-[#48A04C]/50"
+                    : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                }`}
+                title="Toggle Web Dev Mode"
+              >
+                <Code2 className={`w-4 h-4 ${isWebDevMode ? "text-[#48A04C] dark:text-[#52b857]" : "text-emerald-500"}`} />
+                <span>Web Dev</span>
+              </button>
+            </div>
+          )}
         </form>
       </div>
         </>

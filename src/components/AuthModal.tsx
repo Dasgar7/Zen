@@ -144,18 +144,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setSuccessMsg(null);
         }, 700);
       } catch (err: any) {
-        console.error("Google auth error:", err);
-        if (err.code === "auth/popup-closed-by-user") {
-          setErrorMsg("Google sign-in popup was closed before completion.");
-        } else if (err.code === "auth/popup-blocked") {
+        if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") {
+          // Normal user cancellation - user dismissed the popup
+          console.info("Google sign-in popup was closed by user.");
+          setErrorMsg(null);
+        } else if (err?.code === "auth/popup-blocked") {
           setErrorMsg("Popup blocked by browser. Please allow popups for this site or open app in a new tab.");
-        } else if (err.code === "auth/unauthorized-domain") {
+        } else if (err?.code === "auth/unauthorized-domain") {
           // If domain isn't authorized yet or in preview, fall back gracefully
           const fallbackName = name.trim() || (email ? email.split("@")[0] : "Google User");
           const fallbackEmail = email.trim() || "user@gmail.com";
           onLoginSuccess(fallbackName, fallbackEmail);
           onClose();
         } else {
+          console.error("Google auth error:", err);
           setErrorMsg(err.message || "Failed to sign in with Google.");
         }
       } finally {

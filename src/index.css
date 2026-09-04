@@ -8,12 +8,11 @@
 
 :root {
   color-scheme: light dark;
-  /* Larger readable base on phones */
   --zen-text-base: 16px;
   --zen-text-msg: 17.5px;
   --zen-text-hud: 16px;
-  --zen-tap-scale: 0.94;
-  --zen-tap-duration: 140ms;
+  --zen-tap-scale: 0.93;
+  --zen-tap-duration: 130ms;
 }
 
 @media (min-width: 640px) {
@@ -32,7 +31,6 @@ body {
   font-size: var(--zen-text-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Native feel */
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   touch-action: manipulation;
@@ -75,7 +73,7 @@ html.dark body,
 }
 
 /* ------------------------------------------------------------------ */
-/* Native-style press / tap feedback                                    */
+/* Explicit utility classes (still available)                           */
 /* ------------------------------------------------------------------ */
 .zen-tap {
   transition: transform var(--zen-tap-duration) cubic-bezier(0.25, 0.9, 0.3, 1),
@@ -87,13 +85,11 @@ html.dark body,
   cursor: pointer;
   will-change: transform;
 }
-
 .zen-tap:active {
   transform: scale(var(--zen-tap-scale));
   opacity: 0.86;
 }
 
-/* Softer press for larger surfaces (message actions, pills, rows) */
 .zen-tap-soft {
   transition: transform var(--zen-tap-duration) cubic-bezier(0.25, 0.9, 0.3, 1),
               opacity var(--zen-tap-duration) ease,
@@ -101,13 +97,11 @@ html.dark body,
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
-
 .zen-tap-soft:active {
-  transform: scale(0.975);
+  transform: scale(0.97);
   opacity: 0.9;
 }
 
-/* Icon-only round buttons (send, mic, menu, share) */
 .zen-tap-icon {
   transition: transform var(--zen-tap-duration) cubic-bezier(0.25, 0.9, 0.3, 1),
               background-color 0.15s ease,
@@ -116,28 +110,11 @@ html.dark body,
   -webkit-tap-highlight-color: transparent;
   will-change: transform;
 }
-
 .zen-tap-icon:active {
-  transform: scale(0.88);
-  opacity: 0.92;
+  transform: scale(0.86);
+  opacity: 0.9;
 }
 
-/* Global gentle press for plain buttons on touch devices */
-@media (hover: none) and (pointer: coarse) {
-  button:not(:disabled),
-  [role="button"] {
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  button:not(:disabled):active,
-  [role="button"]:active {
-    opacity: 0.88;
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Mobile typography & BIG HUD                                          */
-/* ------------------------------------------------------------------ */
 .zen-msg-text {
   font-size: var(--zen-text-msg);
   line-height: 1.55;
@@ -150,14 +127,12 @@ html.dark body,
   letter-spacing: -0.02em;
 }
 
-/* Larger title / chat name on mobile — big HUD feel */
 .zen-title {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
 }
-
 @media (min-width: 640px) {
   .zen-title {
     font-size: 1.05rem;
@@ -165,77 +140,104 @@ html.dark body,
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Safe areas (iPhone home indicator / notch)                           */
-/* ------------------------------------------------------------------ */
 .zen-safe-bottom {
   padding-bottom: max(14px, env(safe-area-inset-bottom));
 }
-
 .zen-safe-top {
   padding-top: max(10px, env(safe-area-inset-top));
 }
-
 .zen-safe-x {
   padding-left: max(14px, env(safe-area-inset-left));
   padding-right: max(14px, env(safe-area-inset-right));
 }
 
 /* ------------------------------------------------------------------ */
-/* Minimal mobile chrome + larger targets                               */
+/* AGGRESSIVE native feel on real phones (no classes required)          */
 /* ------------------------------------------------------------------ */
-@media (max-width: 639px) {
-  /* Slightly denser message spacing */
-  .zen-msg-gap {
-    margin-bottom: 1.15rem;
+@media (hover: none) and (pointer: coarse) {
+  /* Kill default blue flash */
+  button,
+  a,
+  [role="button"],
+  .cursor-pointer {
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* Bigger primary action (send / mic / voice) */
-  .zen-primary-btn {
-    width: 50px !important;
-    height: 50px !important;
-    min-width: 50px;
-    min-height: 50px;
+  /* Smooth press on almost every tappable element */
+  button:not(:disabled),
+  [role="button"],
+  a.cursor-pointer,
+  .cursor-pointer {
+    transition: transform 130ms cubic-bezier(0.25, 0.9, 0.3, 1),
+                opacity 130ms ease,
+                background-color 0.15s ease !important;
+    will-change: transform;
   }
 
-  /* Input feels more native (iOS-like) */
-  .zen-composer-input {
-    font-size: 17px !important;
-    line-height: 1.45 !important;
+  button:not(:disabled):active,
+  [role="button"]:active,
+  a.cursor-pointer:active,
+  .cursor-pointer:active {
+    transform: scale(0.93) !important;
+    opacity: 0.88 !important;
   }
 
-  /* Bigger header title */
-  .zen-mobile-header-title {
-    font-size: 1.15rem !important;
-    font-weight: 700 !important;
-    letter-spacing: -0.025em;
-  }
-
-  /* Thought / status pills a bit larger for readability */
-  .zen-status-pill {
-    font-size: 13px !important;
-    padding-top: 6px !important;
-    padding-bottom: 6px !important;
-    padding-left: 11px !important;
-    padding-right: 11px !important;
-  }
-
-  /* Hide some secondary chrome on very small screens if needed */
-  .zen-hide-on-mobile {
-    display: none !important;
+  /* Round icon buttons get a stronger squash */
+  button.rounded-full:not(:disabled):active,
+  .rounded-full.cursor-pointer:active {
+    transform: scale(0.86) !important;
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* Voice waveform animation                                             */
+/* Mobile-only size & layout tweaks                                     */
+/* ------------------------------------------------------------------ */
+@media (max-width: 639px) {
+  /* Bigger hero title on home screen */
+  h1, .text-4xl, .text-3xl {
+    letter-spacing: -0.03em;
+  }
+
+  /* Make the main greeting a bit more HUD-like */
+  .text-3xl, .text-4xl {
+    font-weight: 700 !important;
+  }
+
+  /* Primary action circles (send / voice) feel larger */
+  button.rounded-full.bg-\[\#48A04C\],
+  button.rounded-full.bg-emerald-500,
+  button.rounded-full.bg-green-500 {
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  /* Composer input feels native */
+  textarea {
+    font-size: 17px !important;
+    line-height: 1.45 !important;
+  }
+
+  /* Slightly larger status / mode pills */
+  .rounded-full.text-xs,
+  .rounded-full.text-\[11px\] {
+    font-size: 13px !important;
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+  }
+
+  /* More breathing room at the bottom for the home indicator */
+  main > div:last-child,
+  .zen-composer-wrap {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Voice waveform                                                       */
 /* ------------------------------------------------------------------ */
 @keyframes voiceWave {
-  0%, 100% {
-    transform: scaleY(1);
-  }
-  50% {
-    transform: scaleY(1.5);
-  }
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.5); }
 }
 
 .voice-button-trigger:hover .voice-bar-1,
@@ -244,21 +246,18 @@ html.dark body,
   animation-delay: 0s;
   transform-origin: center;
 }
-
 .voice-button-trigger:hover .voice-bar-2,
 .voice-button-trigger:active .voice-bar-2 {
   animation: voiceWave 0.45s ease-in-out 1;
   animation-delay: 0.1s;
   transform-origin: center;
 }
-
 .voice-button-trigger:hover .voice-bar-3,
 .voice-button-trigger:active .voice-bar-3 {
   animation: voiceWave 0.45s ease-in-out 1;
   animation-delay: 0.2s;
   transform-origin: center;
 }
-
 .voice-button-trigger:hover .voice-bar-4,
 .voice-button-trigger:active .voice-bar-4 {
   animation: voiceWave 0.45s ease-in-out 1;
@@ -266,17 +265,15 @@ html.dark body,
   transform-origin: center;
 }
 
-/* Smooth momentum scrolling on iOS */
 .zen-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-/* ------------------------------------------------------------------ */
-/* Subtle haptic-feel ripple for primary actions (optional enhancement) */
-/* ------------------------------------------------------------------ */
+/* Primary green button gets a soft glow on press */
 @media (hover: none) and (pointer: coarse) {
-  .zen-primary-btn:active {
-    box-shadow: 0 0 0 6px rgba(72, 160, 76, 0.18);
+  button.bg-\[\#48A04C\]:active,
+  button.bg-emerald-500:active {
+    box-shadow: 0 0 0 8px rgba(72, 160, 76, 0.22);
   }
 }

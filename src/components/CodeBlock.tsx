@@ -232,9 +232,9 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ code, language = "code" })
   };
 
   return (
-    <div className="my-3 rounded-xl bg-[#1e1e1e] border border-zinc-800 font-mono text-xs overflow-hidden shadow-md text-left select-text">
-      {/* VS Code Dark+ Header Bar */}
-      <div className="bg-[#252526] px-3.5 py-2 border-b border-zinc-800/80 flex justify-between items-center select-none font-sans">
+    <div className="my-3 rounded-xl bg-[#171716] border border-zinc-800/80 font-mono text-xs overflow-hidden shadow-md text-left select-text">
+      {/* Warm Charcoal Code Header Bar */}
+      <div className="bg-[#1f1f1d] px-3.5 py-2 border-b border-zinc-800/80 flex justify-between items-center select-none font-sans">
         <div className="flex items-center space-x-2">
           {/* Traffic Dots */}
           <div className="flex items-center space-x-1.5 mr-1">

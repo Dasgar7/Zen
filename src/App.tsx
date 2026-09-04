@@ -186,7 +186,7 @@ export async function generateVideoWebM(prompt: string, imageUrl?: string): Prom
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
 
-        ctx.fillStyle = "#09090b";
+        ctx.fillStyle = "#141413";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (img && img.complete && img.naturalWidth > 0) {
@@ -210,7 +210,7 @@ export async function generateVideoWebM(prompt: string, imageUrl?: string): Prom
           );
           grad.addColorStop(0, "#8b5cf6");
           grad.addColorStop(0.5, "#ec4899");
-          grad.addColorStop(1, "#09090b");
+          grad.addColorStop(1, "#141413");
           ctx.fillStyle = grad;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
@@ -2638,7 +2638,7 @@ ${code}
                       className={
                         isUser
                           ? "bg-zinc-800 text-amber-300 font-mono text-[0.88em] px-1.5 py-0.5 rounded border border-zinc-700/80 font-normal"
-                          : "bg-[#1e1e1e] text-[#ce9178] font-mono text-[0.88em] px-1.5 py-0.5 rounded border border-zinc-700/60 font-normal"
+                          : "bg-[#1b1b1a] text-[#ce9178] font-mono text-[0.88em] px-1.5 py-0.5 rounded border border-zinc-700/60 font-normal"
                       }
                     >
                       {cp.slice(1, -1)}
@@ -3261,30 +3261,34 @@ ${code}
       </div>
 
       {/* Top Header Bar - Mobile only */}
-      <header className="md:hidden relative w-full px-4 py-3.5 flex items-center justify-between z-30 shrink-0 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md">
+      <header className={`md:hidden relative w-full px-4 pt-3.5 pb-2.5 sm:px-6 flex items-center justify-between z-30 shrink-0 transition-all duration-200 ${
+        hasChatStarted
+          ? "border-b border-zinc-200/60 dark:border-zinc-800/60 bg-white/85 dark:bg-[#141413]/85 backdrop-blur-md"
+          : "border-b border-transparent bg-transparent"
+      }`}>
         {/* Left: Menu button */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center">
           <motion.button
             onClick={() => setIsMenuOpen(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.92 }}
             transition={{ type: "spring", stiffness: 400, damping: 15 }}
-            className="p-2 text-black dark:text-white hover:bg-zinc-100/60 dark:hover:bg-zinc-800/60 rounded-lg transition-colors cursor-pointer flex items-center justify-center"
+            className="w-10 h-10 -ml-1 text-zinc-900 dark:text-zinc-100 hover:opacity-70 transition-opacity cursor-pointer flex items-center justify-center"
             aria-label="Open Menu"
           >
-            <div className="flex flex-col items-center justify-center space-y-[3.5px] w-[18px]">
-              <span className="block h-[2px] w-[18px] bg-black dark:bg-white rounded-full" />
-              <span className="block h-[2px] w-[18px] bg-black dark:bg-white rounded-full" />
-              <span className="block h-[2px] w-[18px] bg-black dark:bg-white rounded-full" />
+            <div className="flex flex-col items-center justify-center space-y-[4px] w-5">
+              <span className="block h-[2px] w-5 bg-current rounded-full" />
+              <span className="block h-[2px] w-5 bg-current rounded-full" />
+              <span className="block h-[2px] w-5 bg-current rounded-full" />
             </div>
           </motion.button>
         </div>
 
-        {/* Center branding or Auto-generated Chat Title */}
+        {/* Center branding or Auto-generated Chat Title - Large, bold branding like Lovable */}
         {!hasChatStarted ? (
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 select-none pointer-events-none">
-            <GenexLogo className="w-5.5 h-5.5 pointer-events-auto" />
-            <span className="text-black dark:text-white font-bold text-lg sm:text-xl tracking-tight pointer-events-auto font-sans">
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2.5 select-none pointer-events-none">
+            <GenexLogo className="w-8 h-8 pointer-events-auto shrink-0 drop-shadow-sm" />
+            <span className="text-zinc-950 dark:text-white font-extrabold text-[24px] sm:text-[26px] tracking-tight pointer-events-auto font-sans leading-none">
               Zen
             </span>
           </div>
@@ -3305,7 +3309,7 @@ ${code}
                   onBlur={saveHeaderRename}
                   autoFocus
                   maxLength={60}
-                  className="px-2.5 py-1 text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg outline-none focus:ring-1.5 focus:ring-[#48A04C] w-full max-w-[200px] xs:max-w-[250px]"
+                  className="px-3 py-1.5 text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 focus:ring-[#48A04C] w-full max-w-[210px] xs:max-w-[260px]"
                 />
               </form>
             ) : (
@@ -3314,10 +3318,10 @@ ${code}
                   setHeaderEditingTitle(displayHeaderTitle);
                   setIsHeaderTitleEditing(true);
                 }}
-                className="group flex items-center space-x-1.5 px-2 py-1 rounded-lg hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                className="group flex items-center space-x-2 px-2.5 py-1.5 rounded-xl hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
                 title="Click to rename chat"
               >
-                <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate max-w-[160px] xs:max-w-[210px] sm:max-w-[280px] font-sans">
+                <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate max-w-[170px] xs:max-w-[220px] sm:max-w-[290px] font-sans">
                   {displayHeaderTitle}
                 </span>
                 <Pencil className="w-3.5 h-3.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -3326,16 +3330,16 @@ ${code}
           </div>
         )}
 
-        {/* Right action / New chat & Share / Avatar */}
-        <div className="flex items-center gap-2.5">
+        {/* Right action / New chat & Share / Avatar / Login */}
+        <div className="flex items-center gap-2">
           {isLoggedIn && !hasChatStarted && (
             <button
               type="button"
               onClick={togglePrivateMode}
-              className={`p-1.5 rounded-full cursor-pointer transition-all flex items-center justify-center ${
+              className={`w-10 h-10 rounded-full cursor-pointer transition-all flex items-center justify-center ${
                 isPrivateChat
-                  ? "text-[#48A04C] dark:text-[#48A04C] bg-[#48A04C]/10 border border-[#48A04C]/40 shadow-[0_0_10px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
-                  : "text-black dark:text-white hover:opacity-80"
+                  ? "text-[#48A04C] dark:text-[#48A04C] bg-[#48A04C]/15 border border-[#48A04C]/50 shadow-[0_0_12px_rgba(72,160,76,0.3)] ring-1 ring-[#48A04C]/40"
+                  : "text-zinc-800 dark:text-zinc-200 bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1]"
               }`}
               title={isPrivateChat ? "Private Chat (Active)" : "Private Chat"}
               aria-label="Toggle Private Chat"
@@ -3348,22 +3352,22 @@ ${code}
               <button
                 type="button"
                 onClick={createNewChat}
-                className="p-2 text-black hover:text-zinc-600 dark:text-white dark:hover:text-zinc-300 transition-colors cursor-pointer flex items-center justify-center"
+                className="w-10 h-10 rounded-full bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1] text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer flex items-center justify-center"
                 title="New chat"
               >
-                <SquarePen className="w-[22px] h-[22px]" />
+                <SquarePen className="w-5 h-5" />
               </button>
 
               <button
                 type="button"
                 onClick={handleShare}
-                className="p-2 text-black hover:text-zinc-600 dark:text-white dark:hover:text-zinc-300 transition-colors cursor-pointer flex items-center justify-center"
+                className="w-10 h-10 rounded-full bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1] text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer flex items-center justify-center"
                 title={isShareCopied ? "Copied to clipboard!" : "Share conversation"}
               >
                 {isShareCopied ? (
-                  <Check className="w-[22px] h-[22px] text-emerald-600 dark:text-emerald-400" />
+                  <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 ) : (
-                  <Share2 className="w-[22px] h-[22px]" />
+                  <Share2 className="w-5 h-5" />
                 )}
               </button>
             </>
@@ -3375,7 +3379,7 @@ ${code}
                 onClick={() => setIsMenuOpen(true)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="w-8 h-8 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white font-bold text-xs shadow-xs cursor-pointer select-none uppercase ml-1"
+                className="w-10 h-10 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-xs cursor-pointer select-none uppercase ml-1"
                 title="Account Menu"
               >
                 {userName ? userName.trim().charAt(0).toUpperCase() : "U"}
@@ -3384,7 +3388,7 @@ ${code}
               <button
                 type="button"
                 onClick={() => setIsAuthOpen(true)}
-                className="h-8 px-3 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold text-xs tracking-wide transition-colors cursor-pointer shadow-xs ml-1 flex items-center justify-center border border-zinc-900 dark:border-zinc-100"
+                className="h-10 px-4 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-[#f3efe8] dark:hover:bg-white text-white dark:text-zinc-950 font-bold text-sm tracking-wide transition-colors cursor-pointer shadow-xs ml-1 flex items-center justify-center border border-zinc-900 dark:border-transparent"
               >
                 Login
               </button>
@@ -3529,7 +3533,7 @@ ${code}
             {/* Input Bar in Left Panel */}
             <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0">
               <form onSubmit={handleSubmit} className="w-full relative">
-                <div className="relative w-full rounded-2xl bg-[#f4f4f5] dark:bg-[#262626] border border-zinc-200 dark:border-zinc-700/70 p-2.5 flex flex-col">
+                <div className="relative w-full rounded-2xl bg-[#f4f4f5] dark:bg-[#212120] border border-zinc-200 dark:border-zinc-700/70 p-2.5 flex flex-col">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -3728,7 +3732,7 @@ ${code}
                 <div
                   style={
                     msg.role === "user"
-                      ? { backgroundColor: "#27272a", color: "#ffffff", opacity: 1 }
+                      ? { backgroundColor: systemTheme === "dark" ? "#262624" : "#27272a", color: "#ffffff", opacity: 1 }
                       : { backgroundColor: "transparent" }
                   }
                   className={
@@ -3930,8 +3934,8 @@ ${code}
         >
           <div className={`relative w-full rounded-[28px] shadow-xl dark:shadow-2xl/40 transition-all duration-300 flex flex-col ${
             isPrivateChat
-              ? "bg-[#f2f9f3] dark:bg-[#0d1c10] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
-              : "bg-[#f4f4f5] dark:bg-[#262626] border border-zinc-200/90 dark:border-zinc-700/70 focus-within:border-zinc-300 dark:focus-within:border-zinc-600"
+              ? "bg-[#f2f9f3] dark:bg-[#142318] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
+              : "bg-[#f4f4f5] dark:bg-[#212120] border border-zinc-200/90 dark:border-zinc-700/70 focus-within:border-zinc-300 dark:focus-within:border-zinc-600"
           }`}>
             {/* Attached Files Preview Grid */}
             <AnimatePresence>
@@ -3942,8 +3946,8 @@ ${code}
                   exit={{ opacity: 0, height: 0 }}
                   className={`px-5 pt-4 pb-2 flex flex-wrap gap-2.5 border-b rounded-t-[28px] ${
                     isPrivateChat
-                      ? "border-[#48A04C]/30 bg-[#f2f9f3] dark:bg-[#0d1c10]"
-                      : "border-zinc-200 dark:border-zinc-700/60 bg-[#f4f4f5] dark:bg-[#262626]"
+                      ? "border-[#48A04C]/30 bg-[#f2f9f3] dark:bg-[#142318]"
+                      : "border-zinc-200 dark:border-zinc-700/60 bg-[#f4f4f5] dark:bg-[#212120]"
                   }`}
                 >
                   {attachedFiles.map((file) => {
@@ -4300,7 +4304,7 @@ ${code}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0 }}
-            className="fixed inset-0 z-[100] bg-black text-white flex flex-col items-center justify-between select-none overflow-hidden font-sans"
+            className="fixed inset-0 z-[100] bg-[#141413] text-white flex flex-col items-center justify-between select-none overflow-hidden font-sans"
           >
             {/* Animated Cosmic / Space Background */}
             <CosmicBackground />

@@ -64,7 +64,7 @@ export const MediaDisplayBlock: React.FC<MediaDisplayBlockProps> = ({
   return (
     <div className="flex flex-col space-y-3 my-3 max-w-lg w-full">
       {/* Container with crossfade from canvas animation to real image */}
-      <div className="relative group rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-xl bg-black aspect-square max-h-[500px]">
+      <div className="relative group rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-xl bg-[#161615] aspect-square max-h-[500px]">
         {/* Generative Canvas loader underneath while image is resolving/loading */}
         <div
           className={`absolute inset-0 z-0 transition-opacity duration-600 ease-out ${

@@ -15,7 +15,7 @@ export const CosmicBackground: React.FC = () => {
   }, []);
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 bg-black">
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 bg-[#141413]">
       {/* Lightweight CSS keyframe animation for star twinkling */}
       <style>{`
         @keyframes cosmicTwinkle {

@@ -16,15 +16,38 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-html.dark body {
-  background-color: #09090b;
-  color: #f4f4f5;
+html.dark,
+.dark {
+  --color-zinc-950: #141413;
+  --color-zinc-900: #1b1b19;
+  --color-zinc-850: #212120;
+  --color-zinc-800: #2a2926;
+  --color-zinc-750: #33322f;
+  --color-zinc-700: #3b3a35;
+  --color-zinc-650: #4a4842;
+  --color-zinc-600: #5c5952;
+}
+
+html.dark body,
+.dark body {
+  background-color: #141413;
+  color: #f3efe8;
 }
 
 @media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --color-zinc-950: #141413;
+    --color-zinc-900: #1b1b19;
+    --color-zinc-850: #212120;
+    --color-zinc-800: #2a2926;
+    --color-zinc-750: #33322f;
+    --color-zinc-700: #3b3a35;
+    --color-zinc-650: #4a4842;
+    --color-zinc-600: #5c5952;
+  }
   body {
-    background-color: #09090b;
-    color: #f4f4f5;
+    background-color: #141413;
+    color: #f3efe8;
   }
 }
 

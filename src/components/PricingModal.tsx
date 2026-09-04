@@ -52,7 +52,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, use
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0e0e0d]/80 backdrop-blur-sm animate-fadeIn" role="dialog" aria-modal="true">
       <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl text-zinc-100 p-6 sm:p-8">
         
         {/* Header */}

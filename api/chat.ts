@@ -62,7 +62,7 @@ const SAFETY_NET = [
 ];
 
 // ---------------------------------------------------------------------------
-// Lightweight task classification (no extra model call)
+// Lightweight task classification
 // ---------------------------------------------------------------------------
 type TaskType = "simple" | "reasoning" | "creative" | "multimodal";
 
@@ -73,7 +73,6 @@ function classifyTask(message: string, hasInlineMedia: boolean): TaskType {
   const lower = text.toLowerCase();
   const len = text.length;
 
-  // Creative signals
   if (
     /\b(write|compose|create|generate|draft|invent)\b.{0,40}\b(story|poem|song|lyrics|script|novel|fiction|tale|narrative|scene)\b/i.test(text) ||
     /\b(imagine|roleplay|pretend|you are a|act as)\b/i.test(text) ||
@@ -82,7 +81,6 @@ function classifyTask(message: string, hasInlineMedia: boolean): TaskType {
     return "creative";
   }
 
-  // Reasoning / coding signals
   if (
     /\b(code|function|class|algorithm|debug|refactor|implement|typescript|javascript|python|sql|regex|api|endpoint)\b/i.test(text) ||
     /```[\s\S]*```/.test(text) ||
@@ -93,7 +91,6 @@ function classifyTask(message: string, hasInlineMedia: boolean): TaskType {
     return "reasoning";
   }
 
-  // Very short or pure greetings / simple facts → fast path
   if (
     len < 90 ||
     /^(hi|hello|hey|yo|sup|good (morning|afternoon|evening)|how are you|what'?s up|thanks|thank you|ok|okay|yes|no|sure)\b/i.test(lower) ||
@@ -102,7 +99,6 @@ function classifyTask(message: string, hasInlineMedia: boolean): TaskType {
     return "simple";
   }
 
-  // Default to strong reasoning for everything else
   return "reasoning";
 }
 
@@ -237,16 +233,47 @@ async function streamGemini(
   return full;
 }
 
+/** Detect if text is mostly meta-reasoning about the prompt itself */
+function looksLikeMetaReasoning(text: string): boolean {
+  const lower = text.toLowerCase();
+  const signals = [
+    "the user says",
+    "user said",
+    "we must",
+    "we should",
+    "according to",
+    "response format",
+    "instructions",
+    "underlying model",
+    "must not mention",
+    "then the user-facing",
+    "then final answer",
+    "so produce",
+    "internal reasoning",
+    "follow the format",
+    "begin with",
+    "enclosed in",
+  ];
+  let hits = 0;
+  for (const s of signals) {
+    if (lower.includes(s)) hits++;
+  }
+  return hits >= 2 || (hits >= 1 && text.length < 400);
+}
+
 /**
  * Robustly split model output into (thoughtProcess, cleanText).
- * Handles proper tags, missing closing tags, and common free-model failures
- * where reasoning is written as plain text before the final answer.
+ * Free models frequently ignore <think> tags — this function recovers.
  */
-function extractThoughtAndAnswer(fullText: string): { thoughtProcess: string; cleanText: string } {
+function extractThoughtAndAnswer(
+  fullText: string,
+  task: TaskType,
+  userText: string
+): { thoughtProcess: string; cleanText: string } {
   let thoughtProcess = "";
   let cleanText = fullText.trim();
 
-  // 1. Proper closed <think>...</think> or <thought>...</thought>
+  // 1. Proper closed tags
   const closed = fullText.match(/<(think|thought)\s*>([\s\S]*?)<\/\1\s*>/i);
   if (closed) {
     thoughtProcess = closed[2].trim();
@@ -254,56 +281,80 @@ function extractThoughtAndAnswer(fullText: string): { thoughtProcess: string; cl
       .replace(/<(think|thought)\s*>[\s\S]*?<\/\1\s*>/gi, "")
       .replace(/<\/?(think|thought)\s*>/gi, "")
       .trim();
-    return { thoughtProcess, cleanText: cleanText || fullText.trim() };
-  }
 
-  // 2. Open tag without close
-  const open = fullText.match(/<(think|thought)\s*>([\s\S]*)/i);
-  if (open) {
-    thoughtProcess = open[2].trim();
-    cleanText = "";
-    // Try to find a natural end of reasoning (first greeting / answer-looking sentence)
-    const split = thoughtProcess.match(
-      /([\s\S]*?)((?:Hi|Hello|Hey|Sure|Of course|Absolutely|Yes|No|Here|The answer|Final answer)[\s\S]*)/i
-    );
-    if (split) {
-      thoughtProcess = split[1].trim();
-      cleanText = split[2].trim();
+    // If after stripping we still have meta text, treat remaining as thought too
+    if (looksLikeMetaReasoning(cleanText)) {
+      thoughtProcess = (thoughtProcess + "\n" + cleanText).trim();
+      cleanText = "";
     }
-    return { thoughtProcess, cleanText: cleanText || thoughtProcess };
+  } else {
+    // 2. Open tag without close
+    const open = fullText.match(/<(think|thought)\s*>([\s\S]*)/i);
+    if (open) {
+      thoughtProcess = open[2].trim();
+      cleanText = "";
+    }
   }
 
-  // 3. No tags at all — common failure mode on free models.
-  //    Heuristic: if the text starts with reasoning-style sentences and later
-  //    contains a clear greeting/answer, split there.
-  const lines = fullText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length >= 2) {
-    // Look for the first line that looks like the actual user-facing answer
+  // 3. No usable tags — try to split on greeting / answer start
+  if (!cleanText || looksLikeMetaReasoning(cleanText)) {
+    const lines = fullText
+      .replace(/<\/?(think|thought)\s*>/gi, "")
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
     let splitIdx = -1;
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
-      if (
-        /^(Hi|Hello|Hey|Hi there|Hello!|Hey!|Sure|Of course|Absolutely)/i.test(l) ||
-        (i > 0 && l.length < 180 && !/user says|we need to|according to|instructions|must not|underlying model/i.test(l))
-      ) {
-        // Prefer a greeting-style line
-        if (/^(Hi|Hello|Hey|Hi there)/i.test(l)) {
-          splitIdx = i;
-          break;
-        }
-        if (splitIdx === -1) splitIdx = i;
+      if (/^(hi\b|hello\b|hey\b|hi there|hello!|hey!|sure[,!]\s|of course|absolutely)/i.test(l)) {
+        splitIdx = i;
+        break;
       }
     }
 
     if (splitIdx > 0) {
       thoughtProcess = lines.slice(0, splitIdx).join("\n").trim();
       cleanText = lines.slice(splitIdx).join("\n").trim();
-      return { thoughtProcess, cleanText };
+    } else if (looksLikeMetaReasoning(fullText)) {
+      // Entire output is meta reasoning — put it all in thought
+      thoughtProcess = fullText.replace(/<\/?(think|thought)\s*>/gi, "").trim();
+      cleanText = "";
     }
   }
 
-  // Fallback: treat everything as the answer (no thought)
-  return { thoughtProcess: "", cleanText: fullText.trim() };
+  // 4. Final safety: if cleanText is still empty or still looks like reasoning,
+  //    force a natural answer for simple tasks.
+  if (!cleanText || looksLikeMetaReasoning(cleanText)) {
+    if (task === "simple") {
+      const lower = userText.toLowerCase().trim();
+      if (/^(hi|hello|hey|yo|sup)\b/.test(lower)) {
+        cleanText = "Hello! How can I help you today?";
+      } else if (/how are you|what'?s up/.test(lower)) {
+        cleanText = "I\'m doing great, thanks for asking! How can I help you today?";
+      } else if (/thanks|thank you/.test(lower)) {
+        cleanText = "You\'re welcome! Let me know if you need anything else.";
+      } else {
+        cleanText = "Hello! How can I help you today?";
+      }
+      if (!thoughtProcess) {
+        thoughtProcess = "Simple greeting detected. Responding warmly and inviting the user to continue.";
+      }
+    } else if (!cleanText) {
+      // Non-simple task but no clean answer recovered — use original as answer
+      cleanText = fullText.replace(/<\/?(think|thought)\s*>/gi, "").trim();
+      thoughtProcess = thoughtProcess || "Analyzed the request and prepared a response.";
+    }
+  }
+
+  // Final cleanup of any leftover tags
+  cleanText = cleanText.replace(/<\/?(think|thought)\s*>/gi, "").trim();
+  thoughtProcess = thoughtProcess.replace(/<\/?(think|thought)\s*>/gi, "").trim();
+
+  return {
+    thoughtProcess: thoughtProcess || "Analyzed the request.",
+    cleanText: cleanText || fullText.trim(),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +369,6 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  // Prepare SSE headers early so the client can start reading
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
@@ -354,48 +404,52 @@ export default async function handler(req: any, res: any) {
         .join(" ")
         .trim() || message || "";
 
-    // ---- Intelligent routing ----
     const task = classifyTask(userText, hasMedia);
     console.log(`[GNX Router] Task classified as "${task}" for message length ${userText.length}`);
 
-    // Strict format instruction — critical for the Thinking block UI
+    // Extremely strict format for free models
     const formatRule =
-      "\n\n### RESPONSE FORMAT (MANDATORY)\n" +
-      "You MUST structure EVERY reply exactly like this:\n\n" +
+      "\n\n### CRITICAL RESPONSE FORMAT\n" +
+      "Your entire reply MUST follow this exact structure and nothing else:\n\n" +
       "<think>\n" +
-      "Your short internal reasoning goes here. Keep it brief (1-4 sentences).\n" +
+      "One or two short sentences of internal reasoning only.\n" +
       "</think>\n\n" +
-      "Then write ONLY the final user-facing answer after the closing tag. " +
-      "Do NOT put any reasoning outside the <think> tags. " +
-      "Do NOT repeat the reasoning after the tags.\n\n" +
-      "Example for a greeting:\n" +
-      "<think>\nUser said hi. Respond warmly and invite them to ask anything.\n</think>\n\n" +
-      "Hello! How can I help you today?";
+      "Then immediately write the final answer the user will see. " +
+      "Do NOT write any analysis, instructions, or meta commentary outside the <think> tags. " +
+      "Do NOT explain the format. Just follow it.\n\n" +
+      "CORRECT example:\n" +
+      "<think>\nUser greeted me. Reply warmly.\n</think>\n\n" +
+      "Hello! How can I help you today?\n\n" +
+      "WRONG (never do this): writing analysis as the answer, or explaining what you are about to do.";
 
-    // System prompt (always branded as GNX; never reveal underlying model)
     let systemInstruction =
-      "You are GNX (General Network Expert), an elite AI engine inside Zen. " +
-      "You MUST NEVER reveal, acknowledge, or mention that you are running on Llama, Meta, OpenAI, ChatGPT, Claude, DeepSeek, Google, or any third-party provider or model name. " +
-      "If asked about your identity or underlying model, state that you are GNX created by GNX. " +
-      "Provide direct, sophisticated, and perfectly clear answers." +
+      "You are GNX, an elite AI assistant inside Zen. " +
+      "Never mention any underlying model, provider, or that you are an AI language model. " +
+      "You are GNX." +
       formatRule;
 
     if (isVoiceCall) {
       systemInstruction =
-        "You are GNX, an elite AI inside Zen. " +
-        "You are in an active live voice conversation. " +
-        "Do NOT include <think> tags. Keep the answer natural, warm, spoken-friendly, concise (1-3 short sentences), and free of markdown or code blocks. " +
-        "Never reveal underlying model names.";
+        "You are GNX. Live voice conversation. " +
+        "No <think> tags. Reply in 1-3 short natural spoken sentences. No markdown.";
     } else if (modelId === "mini") {
       systemInstruction =
-        "You are GNX Rout Mini — an ultra-fast, lightweight AI optimised for quick answers and everyday tasks. " +
-        "Provide rapid, accurate, clear responses. Never reveal underlying model names; you are GNX." +
+        "You are GNX Rout Mini — fast and concise. Never reveal underlying models." +
         formatRule;
     } else if (modelId === "pro") {
       systemInstruction =
-        "You are GNX ROUT Pro — the high-capacity multi-modal master ensemble. " +
-        "Excel at complex reasoning, vision, design, and heavy analysis. Never reveal underlying model names; you are GNX." +
+        "You are GNX ROUT Pro — high capability. Never reveal underlying models." +
         formatRule;
+    }
+
+    // For pure simple greetings, make the prompt even tighter
+    if (task === "simple" && /^(hi|hello|hey|yo|sup)\b/i.test(userText.trim())) {
+      systemInstruction =
+        "You are GNX. The user just said a short greeting. " +
+        "Reply with ONLY this exact structure:\n\n" +
+        "<think>\nFriendly greeting. Invite them to ask anything.\n</think>\n\n" +
+        "Hello! How can I help you today?\n\n" +
+        "Do not add any other text.";
     }
 
     const messages = [
@@ -420,7 +474,6 @@ export default async function handler(req: any, res: any) {
     let fullText = "";
     let usedModel = "";
 
-    // Helper to try a list of OpenAI-compatible models
     const tryOpenAIList = async (
       list: string[],
       baseUrl: string,
@@ -444,7 +497,6 @@ export default async function handler(req: any, res: any) {
       return false;
     };
 
-    // Helper for Gemini pool
     const tryGemini = async () => {
       for (const model of GEMINI_MODELS) {
         if (clientGone) return false;
@@ -462,11 +514,9 @@ export default async function handler(req: any, res: any) {
       return false;
     };
 
-    // ---- Task-aware attempt order ----
     let success = false;
 
     if (task === "simple") {
-      // Prefer speed
       success =
         (await tryOpenAIList(FAST_GROQ, "https://api.groq.com/openai/v1/chat/completions", groqKey, "Groq")) ||
         (await tryOpenAIList(STRONG_OPENROUTER, "https://openrouter.ai/api/v1/chat/completions", orKey, "OpenRouter")) ||
@@ -477,20 +527,17 @@ export default async function handler(req: any, res: any) {
         (await tryOpenAIList(FAST_GROQ, "https://api.groq.com/openai/v1/chat/completions", groqKey, "Groq")) ||
         (await tryGemini());
     } else if (task === "multimodal") {
-      // Prefer Gemini first for vision, then strong OpenRouter
       success =
         (await tryGemini()) ||
         (await tryOpenAIList(STRONG_OPENROUTER, "https://openrouter.ai/api/v1/chat/completions", orKey, "OpenRouter")) ||
         (await tryOpenAIList(FAST_GROQ, "https://api.groq.com/openai/v1/chat/completions", groqKey, "Groq"));
     } else {
-      // reasoning (default) — strongest first
       success =
         (await tryOpenAIList(STRONG_OPENROUTER, "https://openrouter.ai/api/v1/chat/completions", orKey, "OpenRouter")) ||
         (await tryOpenAIList(FAST_GROQ, "https://api.groq.com/openai/v1/chat/completions", groqKey, "Groq")) ||
         (await tryGemini());
     }
 
-    // Final safety net
     if (!success && !clientGone) {
       for (const entry of SAFETY_NET) {
         if (clientGone) break;
@@ -541,13 +588,15 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Extract thought vs clean answer (robust against free models that ignore tags)
-    const { thoughtProcess, cleanText } = extractThoughtAndAnswer(fullText);
+    // Aggressive separation so the UI always gets a clean final answer
+    const { thoughtProcess, cleanText } = extractThoughtAndAnswer(fullText, task, userText);
+
+    console.log(`[GNX Extract] thought length=${thoughtProcess.length}, clean length=${cleanText.length}`);
 
     sendSSE(res, {
       type: "done",
       thoughtProcess,
-      cleanText: cleanText || fullText,
+      cleanText,
       fullText,
       searchSources: [],
     });

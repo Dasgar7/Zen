@@ -10,10 +10,10 @@
   color-scheme: light dark;
   /* Larger readable base on phones */
   --zen-text-base: 16px;
-  --zen-text-msg: 17px;
-  --zen-text-hud: 15px;
-  --zen-tap-scale: 0.96;
-  --zen-tap-duration: 120ms;
+  --zen-text-msg: 17.5px;
+  --zen-text-hud: 16px;
+  --zen-tap-scale: 0.94;
+  --zen-tap-duration: 140ms;
 }
 
 @media (min-width: 640px) {
@@ -21,6 +21,7 @@
     --zen-text-base: 16px;
     --zen-text-msg: 18px;
     --zen-text-hud: 14px;
+    --zen-tap-scale: 0.96;
   }
 }
 
@@ -77,62 +78,90 @@ html.dark body,
 /* Native-style press / tap feedback                                    */
 /* ------------------------------------------------------------------ */
 .zen-tap {
-  transition: transform var(--zen-tap-duration) cubic-bezier(0.2, 0.8, 0.2, 1),
+  transition: transform var(--zen-tap-duration) cubic-bezier(0.25, 0.9, 0.3, 1),
               opacity var(--zen-tap-duration) ease,
-              background-color 0.15s ease;
+              background-color 0.15s ease,
+              box-shadow 0.15s ease;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   cursor: pointer;
+  will-change: transform;
 }
 
 .zen-tap:active {
   transform: scale(var(--zen-tap-scale));
-  opacity: 0.88;
+  opacity: 0.86;
 }
 
-/* Softer press for larger surfaces (message actions, pills) */
+/* Softer press for larger surfaces (message actions, pills, rows) */
+.zen-tap-soft {
+  transition: transform var(--zen-tap-duration) cubic-bezier(0.25, 0.9, 0.3, 1),
+              opacity var(--zen-tap-duration) ease,
+              background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
 .zen-tap-soft:active {
-  transform: scale(0.98);
+  transform: scale(0.975);
   opacity: 0.9;
 }
 
-/* Icon-only round buttons (send, mic, menu) */
+/* Icon-only round buttons (send, mic, menu, share) */
 .zen-tap-icon {
-  transition: transform var(--zen-tap-duration) cubic-bezier(0.2, 0.8, 0.2, 1),
+  transition: transform var(--zen-tap-duration) cubic-bezier(0.25, 0.9, 0.3, 1),
               background-color 0.15s ease,
-              box-shadow 0.15s ease;
+              box-shadow 0.15s ease,
+              opacity 0.12s ease;
   -webkit-tap-highlight-color: transparent;
+  will-change: transform;
 }
 
 .zen-tap-icon:active {
-  transform: scale(0.9);
+  transform: scale(0.88);
+  opacity: 0.92;
+}
+
+/* Global gentle press for plain buttons on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  button:not(:disabled),
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:active {
+    opacity: 0.88;
+  }
 }
 
 /* ------------------------------------------------------------------ */
-/* Mobile typography & HUD                                              */
+/* Mobile typography & BIG HUD                                          */
 /* ------------------------------------------------------------------ */
 .zen-msg-text {
   font-size: var(--zen-text-msg);
   line-height: 1.55;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.011em;
 }
 
 .zen-hud-text {
   font-size: var(--zen-text-hud);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-/* Larger title / chat name on mobile */
-.zen-title {
-  font-size: 1.125rem;
   font-weight: 650;
   letter-spacing: -0.02em;
 }
 
+/* Larger title / chat name on mobile — big HUD feel */
+.zen-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
 @media (min-width: 640px) {
   .zen-title {
-    font-size: 1rem;
+    font-size: 1.05rem;
+    font-weight: 650;
   }
 }
 
@@ -140,39 +169,60 @@ html.dark body,
 /* Safe areas (iPhone home indicator / notch)                           */
 /* ------------------------------------------------------------------ */
 .zen-safe-bottom {
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
 }
 
 .zen-safe-top {
-  padding-top: max(8px, env(safe-area-inset-top));
+  padding-top: max(10px, env(safe-area-inset-top));
 }
 
 .zen-safe-x {
-  padding-left: max(12px, env(safe-area-inset-left));
-  padding-right: max(12px, env(safe-area-inset-right));
+  padding-left: max(14px, env(safe-area-inset-left));
+  padding-right: max(14px, env(safe-area-inset-right));
 }
 
 /* ------------------------------------------------------------------ */
-/* Minimal mobile chrome                                                */
+/* Minimal mobile chrome + larger targets                               */
 /* ------------------------------------------------------------------ */
 @media (max-width: 639px) {
   /* Slightly denser message spacing */
   .zen-msg-gap {
-    margin-bottom: 1.1rem;
+    margin-bottom: 1.15rem;
   }
 
-  /* Bigger primary action (send / mic) */
+  /* Bigger primary action (send / mic / voice) */
   .zen-primary-btn {
-    width: 48px !important;
-    height: 48px !important;
-    min-width: 48px;
-    min-height: 48px;
+    width: 50px !important;
+    height: 50px !important;
+    min-width: 50px;
+    min-height: 50px;
   }
 
-  /* Input feels more native */
+  /* Input feels more native (iOS-like) */
   .zen-composer-input {
     font-size: 17px !important;
-    line-height: 1.4;
+    line-height: 1.45 !important;
+  }
+
+  /* Bigger header title */
+  .zen-mobile-header-title {
+    font-size: 1.15rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.025em;
+  }
+
+  /* Thought / status pills a bit larger for readability */
+  .zen-status-pill {
+    font-size: 13px !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    padding-left: 11px !important;
+    padding-right: 11px !important;
+  }
+
+  /* Hide some secondary chrome on very small screens if needed */
+  .zen-hide-on-mobile {
+    display: none !important;
   }
 }
 
@@ -220,4 +270,13 @@ html.dark body,
 .zen-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+/* ------------------------------------------------------------------ */
+/* Subtle haptic-feel ripple for primary actions (optional enhancement) */
+/* ------------------------------------------------------------------ */
+@media (hover: none) and (pointer: coarse) {
+  .zen-primary-btn:active {
+    box-shadow: 0 0 0 6px rgba(72, 160, 76, 0.18);
+  }
 }

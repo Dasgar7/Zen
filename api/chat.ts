@@ -237,6 +237,75 @@ async function streamGemini(
   return full;
 }
 
+/**
+ * Robustly split model output into (thoughtProcess, cleanText).
+ * Handles proper tags, missing closing tags, and common free-model failures
+ * where reasoning is written as plain text before the final answer.
+ */
+function extractThoughtAndAnswer(fullText: string): { thoughtProcess: string; cleanText: string } {
+  let thoughtProcess = "";
+  let cleanText = fullText.trim();
+
+  // 1. Proper closed <think>...</think> or <thought>...</thought>
+  const closed = fullText.match(/<(think|thought)\s*>([\s\S]*?)<\/\1\s*>/i);
+  if (closed) {
+    thoughtProcess = closed[2].trim();
+    cleanText = fullText
+      .replace(/<(think|thought)\s*>[\s\S]*?<\/\1\s*>/gi, "")
+      .replace(/<\/?(think|thought)\s*>/gi, "")
+      .trim();
+    return { thoughtProcess, cleanText: cleanText || fullText.trim() };
+  }
+
+  // 2. Open tag without close
+  const open = fullText.match(/<(think|thought)\s*>([\s\S]*)/i);
+  if (open) {
+    thoughtProcess = open[2].trim();
+    cleanText = "";
+    // Try to find a natural end of reasoning (first greeting / answer-looking sentence)
+    const split = thoughtProcess.match(
+      /([\s\S]*?)((?:Hi|Hello|Hey|Sure|Of course|Absolutely|Yes|No|Here|The answer|Final answer)[\s\S]*)/i
+    );
+    if (split) {
+      thoughtProcess = split[1].trim();
+      cleanText = split[2].trim();
+    }
+    return { thoughtProcess, cleanText: cleanText || thoughtProcess };
+  }
+
+  // 3. No tags at all — common failure mode on free models.
+  //    Heuristic: if the text starts with reasoning-style sentences and later
+  //    contains a clear greeting/answer, split there.
+  const lines = fullText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2) {
+    // Look for the first line that looks like the actual user-facing answer
+    let splitIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (
+        /^(Hi|Hello|Hey|Hi there|Hello!|Hey!|Sure|Of course|Absolutely)/i.test(l) ||
+        (i > 0 && l.length < 180 && !/user says|we need to|according to|instructions|must not|underlying model/i.test(l))
+      ) {
+        // Prefer a greeting-style line
+        if (/^(Hi|Hello|Hey|Hi there)/i.test(l)) {
+          splitIdx = i;
+          break;
+        }
+        if (splitIdx === -1) splitIdx = i;
+      }
+    }
+
+    if (splitIdx > 0) {
+      thoughtProcess = lines.slice(0, splitIdx).join("\n").trim();
+      cleanText = lines.slice(splitIdx).join("\n").trim();
+      return { thoughtProcess, cleanText };
+    }
+  }
+
+  // Fallback: treat everything as the answer (no thought)
+  return { thoughtProcess: "", cleanText: fullText.trim() };
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -289,28 +358,44 @@ export default async function handler(req: any, res: any) {
     const task = classifyTask(userText, hasMedia);
     console.log(`[GNX Router] Task classified as "${task}" for message length ${userText.length}`);
 
+    // Strict format instruction — critical for the Thinking block UI
+    const formatRule =
+      "\n\n### RESPONSE FORMAT (MANDATORY)\n" +
+      "You MUST structure EVERY reply exactly like this:\n\n" +
+      "<think>\n" +
+      "Your short internal reasoning goes here. Keep it brief (1-4 sentences).\n" +
+      "</think>\n\n" +
+      "Then write ONLY the final user-facing answer after the closing tag. " +
+      "Do NOT put any reasoning outside the <think> tags. " +
+      "Do NOT repeat the reasoning after the tags.\n\n" +
+      "Example for a greeting:\n" +
+      "<think>\nUser said hi. Respond warmly and invite them to ask anything.\n</think>\n\n" +
+      "Hello! How can I help you today?";
+
     // System prompt (always branded as GNX; never reveal underlying model)
     let systemInstruction =
       "You are GNX (General Network Expert), an elite AI engine inside Zen. " +
       "You MUST NEVER reveal, acknowledge, or mention that you are running on Llama, Meta, OpenAI, ChatGPT, Claude, DeepSeek, Google, or any third-party provider or model name. " +
       "If asked about your identity or underlying model, state that you are GNX created by GNX. " +
-      "Provide direct, sophisticated, and perfectly clear answers. " +
-      "Begin your response with a concise internal reasoning enclosed in <think>...</think> tags before the main answer.";
+      "Provide direct, sophisticated, and perfectly clear answers." +
+      formatRule;
 
     if (isVoiceCall) {
-      systemInstruction +=
-        "\n\n### LIVE VOICE CALL DIRECTIVE:\nYou are in an active live voice conversation. " +
-        "Do NOT include <think> tags. Keep the answer natural, warm, spoken-friendly, concise (1-3 short sentences), and free of markdown or code blocks.";
+      systemInstruction =
+        "You are GNX, an elite AI inside Zen. " +
+        "You are in an active live voice conversation. " +
+        "Do NOT include <think> tags. Keep the answer natural, warm, spoken-friendly, concise (1-3 short sentences), and free of markdown or code blocks. " +
+        "Never reveal underlying model names.";
     } else if (modelId === "mini") {
       systemInstruction =
         "You are GNX Rout Mini — an ultra-fast, lightweight AI optimised for quick answers and everyday tasks. " +
-        "Provide rapid, accurate, clear responses. Begin with a brief <think>...</think> then the answer. " +
-        "Never reveal underlying model names; you are GNX.";
+        "Provide rapid, accurate, clear responses. Never reveal underlying model names; you are GNX." +
+        formatRule;
     } else if (modelId === "pro") {
       systemInstruction =
         "You are GNX ROUT Pro — the high-capacity multi-modal master ensemble. " +
-        "Excel at complex reasoning, vision, design, and heavy analysis. " +
-        "Begin with deep <think>...</think> reasoning then the answer. Never reveal underlying model names; you are GNX.";
+        "Excel at complex reasoning, vision, design, and heavy analysis. Never reveal underlying model names; you are GNX." +
+        formatRule;
     }
 
     const messages = [
@@ -456,21 +541,8 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Extract <think> block for the frontend
-    let thoughtProcess = "";
-    let cleanText = fullText;
-    const closed = fullText.match(/<(think|thought)>([\s\S]*?)<\/\1>/i);
-    if (closed) {
-      thoughtProcess = closed[2].trim();
-      cleanText = fullText.replace(/<(think|thought)>([\s\S]*?)<\/\1>/gi, "").trim();
-    } else {
-      const open = fullText.match(/<(think|thought)>([\s\S]*)/i);
-      if (open) {
-        thoughtProcess = open[2].trim();
-        cleanText = fullText.replace(/<(think|thought)>([\s\S]*)?/gi, "").trim();
-      }
-    }
-    cleanText = cleanText.replace(/<\/?(think|thought)>/gi, "").trim();
+    // Extract thought vs clean answer (robust against free models that ignore tags)
+    const { thoughtProcess, cleanText } = extractThoughtAndAnswer(fullText);
 
     sendSSE(res, {
       type: "done",

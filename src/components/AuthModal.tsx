@@ -211,8 +211,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
               onClick={onClose}
               className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-zinc-200/80 hover:bg-zinc-300/80 dark:bg-zinc-800/80 dark:hover:bg-zinc-700/80 text-zinc-700 dark:text-zinc-300 text-xs font-semibold cursor-pointer transition-colors"
             >
@@ -223,10 +223,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Centered Main Auth Content */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: "spring", damping: 26, stiffness: 320 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
             className="w-full max-w-md mx-auto my-auto py-8 flex flex-col items-center text-center"
           >
             {/* Branding Icon */}

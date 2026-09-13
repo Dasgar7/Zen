@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowUp, CornerDownLeft, Sparkles, RefreshCw, Plus, X, FileText, Paperclip, ChevronDown, ChevronUp, Menu, User, MessageSquare, Sliders, LogOut, Info, LogIn, Copy, ThumbsUp, ThumbsDown, Check, Pencil, Settings, Mic, Volume2, VolumeX, Trash2, Brain, MoreVertical, MoreHorizontal, Pin, Square, Share2, SquarePen, PanelLeft, Search, Bookmark, Lock, Ghost, Code2, Monitor, Tablet, Smartphone, ExternalLink, RotateCw, Globe, Layout, Play, Download, Wand2, Image as ImageIcon, Film, AlertCircle } from "lucide-react";
+import { ArrowUp, CornerDownLeft, Sparkles, RefreshCw, Plus, X, FileText, Paperclip, ChevronDown, ChevronUp, Menu, User, MessageSquare, Sliders, LogOut, Info, LogIn, Copy, ThumbsUp, ThumbsDown, Check, Pencil, Settings, Mic, Volume2, VolumeX, Trash2, Brain, MoreVertical, MoreHorizontal, Pin, Square, Share2, SquarePen, PanelLeft, Search, Bookmark, Lock, Ghost, Code2, Monitor, Tablet, Smartphone, ExternalLink, RotateCw, Globe, Layout, Play, Download, Wand2, Image as ImageIcon, Film, AlertCircle, PenLine, Video, Gamepad2, Bot } from "lucide-react";
 import { GenexLogo } from "./components/GenexLogo";
 import { AuthModal } from "./components/AuthModal";
 import { PricingModal } from "./components/PricingModal";
@@ -297,7 +297,7 @@ export default function App() {
   const [isVoiceDropdownOpen, setIsVoiceDropdownOpen] = useState(false);
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
-  const [activeResponseMode, setActiveResponseMode] = useState<"auto" | "fast" | "thinking">("auto");
+  const [topLevelMode, setTopLevelMode] = useState<"chat" | "agent">("chat");
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState("");
   const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
 
@@ -1340,6 +1340,18 @@ export default function App() {
   const [viewportMode, setViewportMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [previewIframeKey, setPreviewIframeKey] = useState<number>(0);
 
+  // Helper to pre-fill input and focus cursor at end
+  const applyStarterPrompt = (promptText: string) => {
+    setInput(promptText);
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const len = promptText.length;
+        inputRef.current.setSelectionRange(len, len);
+      }
+    }, 50);
+  };
+
   // Extract HTML code block from message history for Web Dev Live Preview
   const extractHtmlFromMessageHistory = (messages: Message[]): { html: string; isStreaming: boolean } | null => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -2287,6 +2299,7 @@ ${code}
         noTraining: isPrivateChat,
         isWebDevMode: isWebDevMode,
         isVoiceCall: isVoiceModeActiveRef.current,
+        topLevelMode: topLevelMode,
       }),
     });
 
@@ -2789,7 +2802,7 @@ ${code}
         paddingLeft: isMobile ? 0 : (isMenuOpen ? 280 : 64),
       }}
       transition={sidebarTransition}
-      className="h-screen w-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden font-sans relative selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-zinc-100"
+      className="h-screen w-full bg-white dark:bg-[#141413] text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden font-sans relative selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-zinc-100"
     >
       {/* Pure crisp background without blur or transparency overlays */}
 
@@ -2948,7 +2961,7 @@ ${code}
             : { x: 0, width: isMenuOpen ? 280 : 64 }
         }
         transition={sidebarTransition}
-        className={`fixed left-0 top-0 bottom-0 z-40 bg-white dark:bg-zinc-950 border-r border-zinc-200/80 dark:border-zinc-800/80 select-none overflow-hidden will-change-transform ${
+        className={`fixed left-0 top-0 bottom-0 z-40 bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 select-none overflow-hidden will-change-transform ${
           isMobile && isMenuOpen ? "shadow-2xl" : ""
         }`}
       >
@@ -3162,7 +3175,7 @@ ${code}
             </div>
 
             {/* Bottom Fixed Section: User Account Row */}
-            <div className="p-3 border-t border-zinc-200/80 dark:border-zinc-800/80 space-y-2.5 bg-white dark:bg-zinc-950 shrink-0 mt-auto">
+            <div className="p-3 border-t border-zinc-200/80 dark:border-zinc-800/80 space-y-2.5 bg-white dark:bg-[#141413] shrink-0 mt-auto">
               {/* User Account Row */}
               {isLoggedIn ? (
                 showLogoutConfirm ? (
@@ -3591,9 +3604,9 @@ ${code}
             </div>
 
             {/* Input Bar in Left Panel */}
-            <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0">
+            <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-[#141413]/80 backdrop-blur-md shrink-0">
               <form onSubmit={handleSubmit} className="w-full relative">
-                <div className="relative w-full rounded-2xl bg-[#f4f4f5] dark:bg-[#212120] border border-zinc-200 dark:border-zinc-700/70 p-2.5 flex flex-col">
+                <div className="relative w-full rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] backdrop-blur-xl border border-zinc-200 dark:border-zinc-700/70 p-2.5 flex flex-col">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -3639,7 +3652,7 @@ ${code}
           {(() => {
             const activeWebData = extractHtmlFromMessageHistory(history);
             return (
-              <div className="w-full md:w-[55%] lg:w-[58%] flex flex-col h-full bg-zinc-100 dark:bg-zinc-950 shrink-0 border-t md:border-t-0 border-zinc-200 dark:border-zinc-800 min-w-0">
+              <div className="w-full md:w-[55%] lg:w-[58%] flex flex-col h-full bg-zinc-100 dark:bg-[#141413] shrink-0 border-t md:border-t-0 border-zinc-200 dark:border-zinc-800 min-w-0">
                 {/* Toolbar */}
                 <div className="h-11 px-3 sm:px-4 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 select-none">
                   <div className="flex items-center space-x-2 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-200/80 dark:border-zinc-700/80 text-xs text-zinc-600 dark:text-zinc-300">
@@ -3730,7 +3743,7 @@ ${code}
                 </div>
 
                 {/* Preview Body */}
-                <div className="flex-1 w-full h-full relative p-3 sm:p-4 overflow-auto flex items-center justify-center bg-zinc-200/60 dark:bg-zinc-950">
+                <div className="flex-1 w-full h-full relative p-3 sm:p-4 overflow-auto flex items-center justify-center bg-zinc-200/60 dark:bg-[#141413]">
                   {activeWebData?.html ? (
                     <div
                       className={`transition-all duration-300 h-full ${
@@ -3779,7 +3792,7 @@ ${code}
         <>
           {/* Chat Conversation Content Area - ONLY when chat started */}
           {hasChatStarted ? (
-        <div className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-3.5 sm:px-4 py-6 scrollbar-none flex flex-col space-y-6">
+        <div className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-3.5 sm:px-4 pt-6 pb-36 sm:pb-44 lg:pb-48 scrollbar-none flex flex-col space-y-6">
           <AnimatePresence initial={false}>
             {history.map((msg, index) => (
               <motion.div
@@ -3977,7 +3990,7 @@ ${code}
       ) : null}
 
       {/* Input / Centerpiece Section */}
-      <div className={`w-full max-w-4xl mx-auto px-3.5 sm:px-4 ${hasChatStarted ? "pb-6 pt-2 shrink-0" : "m-auto flex flex-col justify-center"}`}>
+      <div className={`w-full max-w-4xl lg:max-w-3xl mx-auto px-3.5 sm:px-4 bg-transparent ${hasChatStarted ? "pb-6 pt-2 shrink-0 -mt-32 sm:-mt-36 lg:-mt-40 relative z-20 pointer-events-none" : "m-auto flex flex-col justify-center"}`}>
         {/* Centerpiece title - ONLY before chat starts */}
         {!hasChatStarted && (
           <div className="text-center mb-8 sm:mb-10 select-none animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
@@ -3990,12 +4003,12 @@ ${code}
         {/* Dynamic Input Bar - DeepSeek style theme responsive */}
         <form
           onSubmit={handleSubmit}
-          className="w-full relative group shrink-0"
+          className="w-full relative group shrink-0 bg-transparent pointer-events-auto"
         >
-          <div className={`relative w-full rounded-[20px] sm:rounded-[22px] transition-all duration-300 flex flex-col ${
+          <div className={`relative w-full rounded-[20px] sm:rounded-[22px] transition-all duration-300 flex flex-col backdrop-blur-xl ${
             isPrivateChat
-              ? "bg-[#f2f9f3] dark:bg-[#142318] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
-              : "bg-[#f4f4f5] dark:bg-[#212120] border border-zinc-200/90 dark:border-zinc-700/70 focus-within:border-zinc-300 dark:focus-within:border-zinc-600 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-none"
+              ? "bg-[#48A04C]/[0.08] dark:bg-[#48A04C]/[0.12] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
+              : "bg-black/[0.04] dark:bg-white/[0.06] border border-zinc-200/90 dark:border-zinc-700/70 focus-within:border-zinc-300 dark:focus-within:border-zinc-600 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-none"
           }`}>
             {/* Attached Files Preview Grid */}
             <AnimatePresence>
@@ -4006,8 +4019,8 @@ ${code}
                   exit={{ opacity: 0, height: 0 }}
                   className={`px-5 pt-4 pb-2 flex flex-wrap gap-2.5 border-b rounded-t-[20px] sm:rounded-t-[22px] ${
                     isPrivateChat
-                      ? "border-[#48A04C]/30 bg-[#f2f9f3] dark:bg-[#142318]"
-                      : "border-zinc-200 dark:border-zinc-700/60 bg-[#f4f4f5] dark:bg-[#212120]"
+                      ? "border-[#48A04C]/30 bg-transparent"
+                      : "border-zinc-200/60 dark:border-zinc-700/60 bg-transparent"
                   }`}
                 >
                   {attachedFiles.map((file) => {
@@ -4061,8 +4074,8 @@ ${code}
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder={isCreateMediaMode ? "Describe the image or video you want to create..." : isWebDevMode ? "Describe the website you want to build..." : "Ask anything..."}
-              className="w-full bg-transparent pt-4 sm:pt-4.5 pb-15 sm:pb-16 pl-4 sm:pl-5 pr-4 sm:pr-5 text-zinc-900 dark:text-zinc-100 text-base md:text-lg placeholder-zinc-400 dark:placeholder-zinc-500 outline-none resize-none min-h-[114px] sm:min-h-[122px] max-h-[260px] leading-relaxed scrollbar-none focus:ring-0 border-0 font-normal rounded-[20px] sm:rounded-[22px]"
+              placeholder={isCreateMediaMode ? "Describe the image or video you want to create..." : isWebDevMode ? "Describe the website you want to build..." : topLevelMode === "agent" ? "Describe what you want the agent to build or execute..." : "Ask anything..."}
+              className="w-full bg-transparent pt-4 sm:pt-4.5 lg:pt-5 pb-15 sm:pb-16 lg:pb-18 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 text-zinc-900 dark:text-zinc-100 text-base md:text-lg placeholder-zinc-500 dark:placeholder-zinc-400 outline-none resize-none min-h-[114px] sm:min-h-[122px] lg:min-h-[142px] max-h-[260px] leading-relaxed scrollbar-none focus:ring-0 border-0 font-normal rounded-[20px] sm:rounded-[22px]"
               disabled={isLoading}
             />
 
@@ -4182,7 +4195,7 @@ ${code}
 
             {/* Mode / Send / Stop / Voice & Mic Buttons (Bottom Right) */}
             <div className="absolute right-3 sm:right-4 bottom-3 sm:bottom-3.5 flex items-center space-x-1.5 z-20">
-              {/* Mode Dropdown Selector Pill Button (Qwen Style) */}
+              {/* Mode Dropdown Selector Pill Button (Chat vs Agent) */}
               <div className="relative flex items-center justify-center" ref={modeMenuRef}>
                 <button
                   type="button"
@@ -4193,10 +4206,10 @@ ${code}
                       : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
                   }`}
                   aria-label="Select mode"
-                  title="Select response mode"
+                  title="Select mode (Chat or Agent)"
                 >
                   <span className="capitalize">
-                    {activeResponseMode === "auto" ? "Auto" : activeResponseMode === "fast" ? "Fast" : "Thinking"}
+                    {topLevelMode === "chat" ? "Chat" : "Agent"}
                   </span>
                   <ChevronDown className={`w-4 h-4 text-zinc-500 dark:text-zinc-400 transition-transform duration-200 ${isModeMenuOpen ? "rotate-180" : ""}`} />
                 </button>
@@ -4213,17 +4226,16 @@ ${code}
                     >
                       <div className="space-y-1">
                         {[
-                          { id: "auto", name: "Auto" },
-                          { id: "thinking", name: "Thinking" },
-                          { id: "fast", name: "Fast" },
+                          { id: "chat", name: "Chat" },
+                          { id: "agent", name: "Agent" },
                         ].map((m) => {
-                          const isSelected = activeResponseMode === m.id;
+                          const isSelected = topLevelMode === m.id;
                           return (
                             <button
                               key={m.id}
                               type="button"
                               onClick={() => {
-                                setActiveResponseMode(m.id as "auto" | "fast" | "thinking");
+                                setTopLevelMode(m.id as "chat" | "agent");
                                 setIsModeMenuOpen(false);
                               }}
                               className={`w-full text-left px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center justify-between group ${
@@ -4307,48 +4319,147 @@ ${code}
             </p>
           )}
 
-          {/* Quick Action Pills - Design & Web Dev (Only visible on empty home screen before chat starts) */}
+          {/* Dynamic Suggestion Pills - Chat vs Agent modes (Only visible on empty home screen before chat starts) */}
           {!hasChatStarted && (
-            <div className="flex items-center justify-center flex-wrap gap-3 mt-3 select-none">
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !isCreateMediaMode;
-                  setIsCreateMediaMode(next);
-                  if (next) {
-                    setTimeout(() => inputRef.current?.focus(), 50);
-                  }
-                }}
-                className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                  isCreateMediaMode
-                    ? "bg-purple-500/15 dark:bg-purple-500/25 text-purple-600 dark:text-purple-300 border-purple-500/50"
-                    : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                }`}
-                title="Toggle Design Mode"
-              >
-                <Wand2 className={`w-4 h-4 ${isCreateMediaMode ? "text-purple-500 dark:text-purple-300" : "text-purple-500"}`} />
-                <span>Design</span>
-              </button>
+            <div className="flex items-center justify-center flex-wrap gap-2.5 sm:gap-3 mt-3 select-none">
+              {topLevelMode === "chat" ? (
+                <>
+                  {/* Chat Option 1: Write a text */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyStarterPrompt("Help me write ");
+                    }}
+                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                      input.startsWith("Help me write")
+                        ? "bg-blue-500/15 dark:bg-blue-500/25 text-blue-600 dark:text-blue-300 border-blue-500/50"
+                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                    }`}
+                    title="Write a text"
+                  >
+                    <PenLine className={`w-4 h-4 ${input.startsWith("Help me write") ? "text-blue-500 dark:text-blue-300" : "text-blue-500"}`} />
+                    <span>Write a text</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !isWebDevMode;
-                  setIsWebDevMode(next);
-                  if (next) {
-                    setTimeout(() => inputRef.current?.focus(), 50);
-                  }
-                }}
-                className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                  isWebDevMode
-                    ? "bg-[#48A04C]/15 dark:bg-[#48A04C]/25 text-[#48A04C] dark:text-[#52b857] border-[#48A04C]/50"
-                    : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                }`}
-                title="Toggle Web Dev Mode"
-              >
-                <Code2 className={`w-4 h-4 ${isWebDevMode ? "text-[#48A04C] dark:text-[#52b857]" : "text-emerald-500"}`} />
-                <span>Web Dev</span>
-              </button>
+                  {/* Chat Option 2: Generate/edit images */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !isCreateMediaMode;
+                      setIsCreateMediaMode(next);
+                      if (next) {
+                        setIsWebDevMode(false);
+                        setTimeout(() => inputRef.current?.focus(), 50);
+                      }
+                    }}
+                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                      isCreateMediaMode
+                        ? "bg-purple-500/15 dark:bg-purple-500/25 text-purple-600 dark:text-purple-300 border-purple-500/50"
+                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                    }`}
+                    title="Generate or edit images"
+                  >
+                    <Wand2 className={`w-4 h-4 ${isCreateMediaMode ? "text-purple-500 dark:text-purple-300" : "text-purple-500"}`} />
+                    <span>Generate/edit images</span>
+                  </button>
+
+                  {/* Chat Option 3: Write code */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyStarterPrompt("Write code to ");
+                    }}
+                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                      input.startsWith("Write code to")
+                        ? "bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border-emerald-500/50"
+                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                    }`}
+                    title="Write code"
+                  >
+                    <Code2 className={`w-4 h-4 ${input.startsWith("Write code to") ? "text-emerald-500 dark:text-emerald-300" : "text-emerald-500"}`} />
+                    <span>Write code</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Agent Option 1: Generate a video */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateMediaMode(true);
+                      setIsWebDevMode(false);
+                      applyStarterPrompt("Generate a video of ");
+                    }}
+                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                      isCreateMediaMode && input.toLowerCase().includes("video")
+                        ? "bg-purple-500/15 dark:bg-purple-500/25 text-purple-600 dark:text-purple-300 border-purple-500/50"
+                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                    }`}
+                    title="Generate a video"
+                  >
+                    <Video className={`w-4 h-4 ${isCreateMediaMode && input.toLowerCase().includes("video") ? "text-purple-500 dark:text-purple-300" : "text-purple-500"}`} />
+                    <span>Generate a video</span>
+                  </button>
+
+                  {/* Agent Option 2: Build a website or web app */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !isWebDevMode;
+                      setIsWebDevMode(next);
+                      if (next) {
+                        setIsCreateMediaMode(false);
+                        setTimeout(() => inputRef.current?.focus(), 50);
+                      }
+                    }}
+                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                      isWebDevMode
+                        ? "bg-[#48A04C]/15 dark:bg-[#48A04C]/25 text-[#48A04C] dark:text-[#52b857] border-[#48A04C]/50"
+                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                    }`}
+                    title="Build a website or web app"
+                  >
+                    <Globe className={`w-4 h-4 ${isWebDevMode ? "text-[#48A04C] dark:text-[#52b857]" : "text-emerald-500"}`} />
+                    <span>Build a website or web app</span>
+                  </button>
+
+                  {/* Agent Option 3: Build a mobile app */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyStarterPrompt("Build a mobile app for ");
+                    }}
+                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                      input.startsWith("Build a mobile app")
+                        ? "bg-amber-500/15 dark:bg-amber-500/25 text-amber-600 dark:text-amber-300 border-amber-500/50"
+                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                    }`}
+                    title="Build a mobile app"
+                  >
+                    <Smartphone className={`w-4 h-4 ${input.startsWith("Build a mobile app") ? "text-amber-500 dark:text-amber-300" : "text-amber-500"}`} />
+                    <span>Build a mobile app</span>
+                  </button>
+
+                  {/* Agent Option 4: Create a game */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsWebDevMode(true);
+                      setIsCreateMediaMode(false);
+                      applyStarterPrompt("Create a playable game with interactive controls where ");
+                    }}
+                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+                      input.startsWith("Create a playable game")
+                        ? "bg-rose-500/15 dark:bg-rose-500/25 text-rose-600 dark:text-rose-300 border-rose-500/50"
+                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
+                    }`}
+                    title="Create a game"
+                  >
+                    <Gamepad2 className={`w-4 h-4 ${input.startsWith("Create a playable game") ? "text-rose-500 dark:text-rose-300" : "text-rose-500"}`} />
+                    <span>Create a game</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </form>

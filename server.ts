@@ -1188,8 +1188,16 @@ User Message:
   // API Routes
   app.post("/api/chat", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { message, parts, history, modelId, userMemoryContext, isWebDevMode, isVoiceCall } = req.body;
+      const { message, parts, history, modelId: rawModelId, userMemoryContext, isWebDevMode, isVoiceCall, topLevelMode } = req.body;
       const ai = getGemini();
+
+      // Smart automatic model routing based on topLevelMode (Agent vs Chat)
+      let modelId = rawModelId;
+      if (topLevelMode === "agent") {
+        if (!modelId || modelId === "mini") {
+          modelId = "thinking";
+        }
+      }
 
       // Ensure history format is compatible or default to empty array
       const chatHistory = Array.isArray(history) ? history : [];
@@ -1203,6 +1211,18 @@ User Message:
         systemInstruction = "You are GNX Rout Thinking — a deep reasoning AI model specialized for mathematics, coding, logic, text composition, and hard multi-step problems. You MUST start your response with thorough, step-by-step reasoning enclosed in <think>...</think> tags, breaking down the problem thoroughly before providing your final answer.";
       } else if (modelId === "pro") {
         systemInstruction = "You are GNX ROUT Pro — the high-capacity, multi-modal master ensemble AI model with maximum capabilities. You excel at complex reasoning, vision/multimodal analysis, creative design, code architecture, and heavy analytical tasks. Begin your response with deep analytical reasoning enclosed in <think>...</think> tags before your main answer.";
+      }
+
+      if (topLevelMode === "agent") {
+        systemInstruction += `\n\n### AUTONOMOUS AGENT MODE DIRECTIVE:
+You are operating in autonomous AGENT MODE inside Zen. In Agent mode, you act as an autonomous, multi-step problem solver capable of deep planning and end-to-end task execution.
+1. Formulate a comprehensive, step-by-step execution plan enclosed in <think>...</think> tags before acting, detailing objectives, components, architecture, and verification.
+2. Execute tasks end-to-end: write complete, working, high-quality production code without shortcuts, omissions, stubs, or placeholders.
+3. If designing or building an application, game, website, or script, provide the complete, runnable solution with all components, styling, logic, error handling, and instructions.
+4. Reason systematically through edge cases and deliver an end-to-end outcome.`;
+      } else {
+        systemInstruction += `\n\n### CONVERSATIONAL CHAT MODE DIRECTIVE:
+You are operating in direct conversational CHAT MODE inside Zen. Provide direct, natural, articulate, concise, and helpful answers, creative writing, explanations, and quick coding help with conversational clarity.`;
       }
 
       if (isVoiceCall) {

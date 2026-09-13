@@ -48,6 +48,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const { name, email } = event.data.user || {};
         const userName = name || "GitHub User";
         const userEmail = email || "user@github.com";
+        if (event.data.githubToken) {
+          try {
+            localStorage.setItem("zen_github_token", event.data.githubToken);
+          } catch (e) {
+            console.warn("Could not persist GitHub token:", e);
+          }
+        }
         setIsSubmitting(false);
         setSuccessMsg(`Authenticated as ${userName}!`);
         setTimeout(() => {
@@ -65,6 +72,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (urlParams.get("auth_success") === "1") {
       const urlName = urlParams.get("name") || "GitHub User";
       const urlEmail = urlParams.get("email") || "user@github.com";
+      try {
+        const pendingToken = sessionStorage.getItem("zen_github_token_pending");
+        if (pendingToken) {
+          localStorage.setItem("zen_github_token", pendingToken);
+          sessionStorage.removeItem("zen_github_token_pending");
+        }
+      } catch (e) {
+        console.warn("Could not persist GitHub token:", e);
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
       onLoginSuccessRef.current(urlName, urlEmail);
       onCloseRef.current();

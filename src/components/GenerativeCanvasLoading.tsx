@@ -26,12 +26,20 @@ interface Particle {
   isSpark?: boolean;
 }
 
-const PHRASES = [
+const IMAGE_PHRASES = [
   "Sketching the composition...",
   "Synthesizing light & shadows...",
   "Applying brush strokes & color palette...",
   "Refining fine textures & details...",
   "Materializing final render...",
+];
+
+const VIDEO_PHRASES = [
+  "Rendering your video...",
+  "Composing initial motion keyframes...",
+  "Synthesizing temporal flow & dynamics...",
+  "Polishing motion fidelity & lighting...",
+  "Finalizing video stream...",
 ];
 
 export const GenerativeCanvasLoading: React.FC<GenerativeCanvasLoadingProps> = ({
@@ -45,6 +53,8 @@ export const GenerativeCanvasLoading: React.FC<GenerativeCanvasLoadingProps> = (
   const [currentPhraseIdx, setCurrentPhraseIdx] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  const activePhrases = mediaType === "video" ? VIDEO_PHRASES : IMAGE_PHRASES;
+
   // Rotating phrases and elapsed timer
   useEffect(() => {
     const startTime = Date.now();
@@ -52,14 +62,14 @@ export const GenerativeCanvasLoading: React.FC<GenerativeCanvasLoadingProps> = (
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       setElapsedSeconds(elapsed);
       const nextIdx = Math.min(
-        PHRASES.length - 1,
-        Math.floor(elapsed / 2.5) % PHRASES.length
+        activePhrases.length - 1,
+        Math.floor(elapsed / 2.5) % activePhrases.length
       );
       setCurrentPhraseIdx(nextIdx);
     }, 500);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [activePhrases]);
 
   // Canvas particle and scanline simulation
   useEffect(() => {
@@ -317,7 +327,7 @@ export const GenerativeCanvasLoading: React.FC<GenerativeCanvasLoadingProps> = (
       <div className="relative z-10 w-full p-4 flex items-center justify-between">
         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-xs font-semibold shadow-xs">
           <Wand2 className="w-3.5 h-3.5 text-[#52b857] animate-spin" style={{ animationDuration: "3s" }} />
-          <span>{mediaType === "video" ? "Zen Motion Studio" : "Zen Design Canvas"}</span>
+          <span>{mediaType === "video" ? "Rendering your video" : "Zen Design Canvas"}</span>
         </div>
 
         <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 text-xs font-mono">
@@ -332,7 +342,7 @@ export const GenerativeCanvasLoading: React.FC<GenerativeCanvasLoadingProps> = (
           <Sparkles className="w-6 h-6 text-[#52b857]" />
         </div>
         <p className="text-xs font-mono uppercase tracking-widest text-[#52b857] font-semibold">
-          Neural Synthesis
+          {mediaType === "video" ? "Motion Synthesis" : "Neural Synthesis"}
         </p>
         <p className="text-xs text-zinc-400 mt-1 max-w-[280px] truncate italic">
           "{prompt}"
@@ -345,12 +355,12 @@ export const GenerativeCanvasLoading: React.FC<GenerativeCanvasLoadingProps> = (
           <div className="flex items-center space-x-2.5 min-w-0">
             <span className="w-2 h-2 rounded-full bg-[#48A04C] animate-pulse shrink-0" />
             <span className="text-xs sm:text-sm font-medium text-zinc-200 truncate tracking-tight animate-pulse">
-              {PHRASES[currentPhraseIdx]}
+              {activePhrases[currentPhraseIdx]}
             </span>
           </div>
 
           <div className="hidden sm:flex items-center space-x-1 shrink-0 pl-2">
-            {PHRASES.map((_, idx) => (
+            {activePhrases.map((_, idx) => (
               <span
                 key={idx}
                 className={`h-1.5 rounded-full transition-all duration-300 ${

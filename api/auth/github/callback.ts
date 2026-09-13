@@ -5,8 +5,11 @@ export default async function handler(req: any, res: any) {
       return res.status(400).send("No authorization code provided from GitHub");
     }
 
-    const clientId = process.env.GITHUB_CLIENT_ID || "Ov23liA5FPrwR4cCmecj";
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET || "51ec4f1605883d8a3315aeef69c6459c55b90bf3";
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      return res.status(500).send("GitHub OAuth is not configured (missing GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET env vars).");
+    }
 
     let redirectUri = process.env.GITHUB_REDIRECT_URI;
     if (!redirectUri) {
@@ -115,7 +118,10 @@ export default async function handler(req: any, res: any) {
                 name: ${JSON.stringify(displayName)},
                 email: ${JSON.stringify(finalEmail)},
                 avatar: ${JSON.stringify(avatarUrl)}
-              }
+              },
+              // Access token for authenticated GitHub API calls (repo listing, file read/write, etc).
+              // Never logged or shown to the user directly.
+              githubToken: ${JSON.stringify(accessToken)}
             };
 
             if (window.opener) {
@@ -124,6 +130,11 @@ export default async function handler(req: any, res: any) {
                 window.close();
               }, 500);
             } else {
+              // Same-window fallback: token can't safely go in a URL, so stash it in
+              // sessionStorage for the app to pick up once, then strip it from history.
+              try {
+                sessionStorage.setItem("zen_github_token_pending", ${JSON.stringify(accessToken)});
+              } catch (e) {}
               window.location.href = "/?auth_success=1&name=" + encodeURIComponent(${JSON.stringify(displayName)}) + "&email=" + encodeURIComponent(${JSON.stringify(finalEmail)});
             }
           </script>

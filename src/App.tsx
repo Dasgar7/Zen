@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowUp, CornerDownLeft, Sparkles, RefreshCw, Plus, X, FileText, Paperclip, ChevronDown, ChevronUp, Menu, User, MessageSquare, Sliders, LogOut, Info, LogIn, Copy, ThumbsUp, ThumbsDown, Check, Pencil, Settings, Mic, Volume2, VolumeX, Trash2, Brain, MoreVertical, MoreHorizontal, Pin, Square, Share2, SquarePen, PanelLeft, Search, Bookmark, Lock, Ghost, Code2, Monitor, Tablet, Smartphone, ExternalLink, RotateCw, Globe, Layout, Play, Download, Wand2, Image as ImageIcon, Film, AlertCircle, PenLine, Video, Gamepad2, Bot } from "lucide-react";
+import { ArrowUp, CornerDownLeft, Sparkles, RefreshCw, Plus, X, FileText, Paperclip, ChevronDown, ChevronUp, Menu, User, MessageSquare, Sliders, LogOut, Info, LogIn, Copy, ThumbsUp, ThumbsDown, Check, Pencil, Settings, Mic, Volume2, VolumeX, Trash2, Brain, MoreVertical, MoreHorizontal, Pin, Square, Share2, SquarePen, PanelLeft, Search, Bookmark, Lock, Ghost, Code2, Monitor, Tablet, Smartphone, ExternalLink, RotateCw, Globe, Layout, Play, Download, Wand2, Image as ImageIcon, Film, AlertCircle, PenLine, Video, Gamepad2, Bot, Github, FolderGit2, Loader2 } from "lucide-react";
 import { GenexLogo } from "./components/GenexLogo";
 import { AuthModal } from "./components/AuthModal";
 import { PricingModal } from "./components/PricingModal";
@@ -47,6 +47,7 @@ interface Message {
   mediaUrl?: string;
   mediaPrompt?: string;
   mediaError?: boolean;
+  mediaErrorMessage?: string;
 }
 
 export interface ChatSession {
@@ -296,6 +297,60 @@ export default function App() {
   });
   const [isVoiceDropdownOpen, setIsVoiceDropdownOpen] = useState(false);
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
+  const [isRepoPickerOpen, setIsRepoPickerOpen] = useState(false);
+  const [repoList, setRepoList] = useState<Array<{ id: number; name: string; fullName: string; owner: string; private: boolean; defaultBranch: string; description: string }>>([]);
+  const [isReposLoading, setIsReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [connectedRepo, setConnectedRepo] = useState<{ fullName: string; owner: string; name: string; defaultBranch: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem("zen_connected_repo");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const openRepoPicker = async () => {
+    setIsAttachMenuOpen(false);
+    setIsRepoPickerOpen(true);
+    setReposError(null);
+    const token = localStorage.getItem("zen_github_token");
+    if (!token) {
+      setReposError("Connect your GitHub account first (Sign in with GitHub) to browse repos.");
+      return;
+    }
+    setIsReposLoading(true);
+    try {
+      const res = await fetch("/api/github/repos", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReposError(data.error || "Failed to load repositories.");
+      } else {
+        setRepoList(data.repos || []);
+      }
+    } catch (e) {
+      setReposError("Could not reach GitHub. Check your connection and try again.");
+    } finally {
+      setIsReposLoading(false);
+    }
+  };
+
+  const selectRepo = (repo: { fullName: string; owner: string; name: string; defaultBranch: string }) => {
+    setConnectedRepo(repo);
+    try {
+      localStorage.setItem("zen_connected_repo", JSON.stringify(repo));
+    } catch {}
+    setIsRepoPickerOpen(false);
+  };
+
+  const disconnectRepo = () => {
+    setConnectedRepo(null);
+    try {
+      localStorage.removeItem("zen_connected_repo");
+    } catch {}
+  };
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [topLevelMode, setTopLevelMode] = useState<"chat" | "agent">("chat");
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState("");
@@ -2055,6 +2110,7 @@ ${code}
             mediaPrompt: prompt,
             mediaUrl: undefined,
             mediaError: undefined,
+            mediaErrorMessage: undefined,
             buildDuration: 0,
           };
         }
@@ -2079,8 +2135,16 @@ ${code}
       let finalMediaUrl = data.url;
 
       if (mediaType === "video") {
-        setLiveWorkingText("Synthesizing motion video clip...");
-        finalMediaUrl = await generateVideoWebM(prompt, existingImageUrl || data.url);
+        const isAlreadyVideo =
+          typeof finalMediaUrl === "string" &&
+          (finalMediaUrl.startsWith("data:video/") ||
+           finalMediaUrl.includes(".mp4") ||
+           finalMediaUrl.includes(".webm"));
+
+        if (!isAlreadyVideo) {
+          setLiveWorkingText("Rendering your video...");
+          finalMediaUrl = await generateVideoWebM(prompt, existingImageUrl || data.url);
+        }
       }
 
       const durationSeconds = Math.max(1, Math.round((Date.now() - startTime) / 1000));
@@ -2097,6 +2161,7 @@ ${code}
             mediaUrl: finalMediaUrl,
             mediaPrompt: prompt,
             mediaError: false,
+            mediaErrorMessage: undefined,
             buildDuration: durationSeconds,
           };
         }
@@ -2107,15 +2172,17 @@ ${code}
         return;
       }
       console.error("Media generation error:", err);
+      const errMsg = err?.message || `Failed to generate ${mediaType}.`;
       setHistory((prev) => {
         const updated = [...prev];
         const lastIdx = updated.length - 1;
         if (lastIdx >= 0 && updated[lastIdx].role === "model") {
           updated[lastIdx] = {
             ...updated[lastIdx],
-            parts: [{ text: `Failed to generate ${mediaType}: ${err?.message || "Unknown error"}. Please check your connection or prompt and try again.` }],
+            parts: [{ text: errMsg }],
             modeTag: "create",
             mediaError: true,
+            mediaErrorMessage: errMsg,
             mediaType,
             mediaPrompt: prompt,
           };
@@ -2733,6 +2800,8 @@ ${code}
         mediaUrl={msg.mediaUrl}
         mediaPrompt={msg.mediaPrompt}
         mediaError={msg.mediaError}
+        errorMessage={msg.mediaErrorMessage}
+        buildDuration={msg.buildDuration}
         isLoading={isLoading}
         onRegenerate={handleRegenerateMedia}
         onAnimateToVideo={handleAnimateImageToVideo}
@@ -2829,6 +2898,97 @@ ${code}
         initialName={userName}
         initialEmail={userEmail}
       />
+
+      {/* GitHub Repo Picker Modal */}
+      <AnimatePresence>
+        {isRepoPickerOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setIsRepoPickerOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md max-h-[70vh] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100"
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+                <div className="flex items-center space-x-2">
+                  <Github className="w-4 h-4" />
+                  <h3 className="text-sm font-semibold">Choose a repo</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRepoPickerOpen(false)}
+                  className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
+                {isReposLoading && (
+                  <div className="flex items-center justify-center py-10 text-zinc-500 dark:text-zinc-400 text-sm space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading your repositories...</span>
+                  </div>
+                )}
+
+                {!isReposLoading && reposError && (
+                  <div className="p-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                    {reposError}
+                  </div>
+                )}
+
+                {!isReposLoading && !reposError && repoList.length === 0 && (
+                  <div className="p-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                    No repositories found.
+                  </div>
+                )}
+
+                {!isReposLoading &&
+                  !reposError &&
+                  repoList.map((repo) => (
+                    <button
+                      key={repo.id}
+                      type="button"
+                      onClick={() =>
+                        selectRepo({
+                          fullName: repo.fullName,
+                          owner: repo.owner,
+                          name: repo.name,
+                          defaultBranch: repo.defaultBranch,
+                        })
+                      }
+                      className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex items-start space-x-2.5 group"
+                    >
+                      <FolderGit2 className="w-4 h-4 mt-0.5 text-zinc-400 group-hover:text-[#48A04C] shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate flex items-center space-x-1.5">
+                          <span className="truncate">{repo.fullName}</span>
+                          {repo.private && (
+                            <Lock className="w-3 h-3 text-zinc-400 shrink-0" />
+                          )}
+                        </div>
+                        {repo.description && (
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                            {repo.description}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Settings Modal */}
       <AnimatePresence>
@@ -4127,10 +4287,37 @@ ${code}
                         <Paperclip className="w-4 h-4 text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white shrink-0" />
                         <span>Upload file</span>
                       </button>
+
+                      {/* Option: Choose a repo */}
+                      <button
+                        type="button"
+                        onClick={openRepoPicker}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-800 dark:text-zinc-200 text-xs sm:text-sm font-medium transition-colors cursor-pointer flex items-center space-x-2.5 group"
+                      >
+                        <Github className="w-4 h-4 text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white shrink-0" />
+                        <span>Choose a repo</span>
+                      </button>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* Connected Repo Tag */}
+              {connectedRepo && (
+                <motion.button
+                  type="button"
+                  onClick={disconnectRepo}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  title="Click to disconnect this repo"
+                  className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-[11px] sm:text-xs font-medium hover:bg-zinc-300/70 dark:hover:bg-zinc-700 transition-colors group"
+                >
+                  <FolderGit2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="max-w-[110px] truncate">{connectedRepo.name}</span>
+                  <X className="w-3 h-3 opacity-60 group-hover:opacity-100 shrink-0" />
+                </motion.button>
+              )}
 
               {/* Inline Web Dev Mode Tag (Kimi / ChatGPT style next to + button) */}
               <AnimatePresence>

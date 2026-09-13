@@ -798,7 +798,7 @@ async function startServer() {
   // Zen Media Generation Engine Endpoint (Image & Video)
   app.post("/api/generate-media", async (req: Request, res: Response) => {
     try {
-      const { prompt, mediaType = "image", width = 1024, height = 1024 } = req.body;
+      const { prompt, mediaType = "image", width = 1024, height = 1024, imageUrl } = req.body;
       if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
         res.status(400).json({ error: "A valid prompt is required for media generation." });
         return;
@@ -807,59 +807,336 @@ async function startServer() {
       const cleanPrompt = prompt.trim();
       console.log(`[Zen Media Engine] Generating ${mediaType} for prompt: "${cleanPrompt}"`);
 
-      const seed = Math.floor(Math.random() * 1000000);
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
-
-      let base64DataUrl = "";
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 18000); // 18 second limit
-        const imageRes = await fetch(pollinationsUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (imageRes.ok) {
-          const arrayBuf = await imageRes.arrayBuffer();
-          const buffer = Buffer.from(arrayBuf);
-          const mimeType = imageRes.headers.get("content-type") || "image/jpeg";
-          base64DataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+      // 1. Dedicated Gemini Native Image Generation Call Path
+      if (mediaType === "image") {
+        let ai: GoogleGenAI;
+        try {
+          ai = getGemini();
+        } catch (keyErr: any) {
+          console.error("[Zen Media Engine] Gemini API key error:", keyErr);
+          res.status(500).json({
+            error: "Gemini API key is not configured. Please ensure GEMINI_API_KEY is available in Settings > Secrets.",
+            isApiKeyMissing: true,
+          });
+          return;
         }
-      } catch (fetchErr: any) {
-        // Fall back gracefully to synthesized visual artwork
-        console.info(`[Zen Media Engine] Using responsive generative visual rendering for "${cleanPrompt.slice(0, 30)}..."`);
+
+        // Gemini Flash Image / Nano Banana family models:
+        // gemini-3.1-flash-image: Nano Banana 2 (current recommended generalist model)
+        // gemini-3.1-flash-lite-image: Nano Banana 2 Lite (fast, free-tier efficient)
+        // gemini-2.5-flash-image: Nano Banana legacy model identifier
+        const candidateModels = [
+          "gemini-3.1-flash-image",
+          "gemini-3.1-flash-lite-image",
+          "gemini-2.5-flash-image",
+        ];
+
+        let base64DataUrl = "";
+        let lastError: any = null;
+        let isQuotaError = false;
+
+        for (const model of candidateModels) {
+          try {
+            console.log(`[Zen Media Engine] Calling Gemini native image model: ${model} for "${cleanPrompt.slice(0, 40)}..."`);
+            const geminiResponse = await ai.models.generateContent({
+              model,
+              contents: [
+                {
+                  role: "user",
+                  parts: [{ text: cleanPrompt }],
+                },
+              ],
+              config: {
+                imageConfig: {
+                  aspectRatio: "1:1",
+                },
+              },
+            });
+
+            const candidates = geminiResponse.candidates || [];
+            for (const candidate of candidates) {
+              const parts = candidate.content?.parts || [];
+              for (const part of parts) {
+                if (part.inlineData && part.inlineData.data) {
+                  const mimeType = part.inlineData.mimeType || "image/png";
+                  base64DataUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+                  console.log(`[Zen Media Engine] Successfully generated image with Gemini native model: ${model}`);
+                  break;
+                }
+              }
+              if (base64DataUrl) break;
+            }
+
+            if (base64DataUrl) break;
+          } catch (modelErr: any) {
+            lastError = modelErr;
+            const errMsg = modelErr?.message || String(modelErr);
+            console.warn(`[Zen Media Engine] Gemini model ${model} error:`, errMsg);
+            if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("quota") || errMsg.includes("limit reached")) {
+              isQuotaError = true;
+            }
+          }
+        }
+
+        // Additional fallback within Gemini API if generateContent Nano Banana didn't return data
+        if (!base64DataUrl) {
+          try {
+            console.log(`[Zen Media Engine] Attempting Gemini native Imagen fallback for "${cleanPrompt.slice(0, 40)}..."`);
+            const imagenRes = await ai.models.generateImages({
+              model: "imagen-3.0-generate-002",
+              prompt: cleanPrompt,
+              config: {
+                numberOfImages: 1,
+                outputMimeType: "image/jpeg",
+                aspectRatio: "1:1",
+              },
+            });
+            if (imagenRes.generatedImages && imagenRes.generatedImages.length > 0 && imagenRes.generatedImages[0].image?.imageBytes) {
+              base64DataUrl = `data:image/jpeg;base64,${imagenRes.generatedImages[0].image.imageBytes}`;
+              console.log("[Zen Media Engine] Successfully generated image with Gemini Imagen fallback");
+            }
+          } catch (imagenErr: any) {
+            const imgErrMsg = imagenErr?.message || String(imagenErr);
+            console.warn("[Zen Media Engine] Gemini Imagen fallback unavailable:", imgErrMsg);
+            if (imgErrMsg.includes("429") || imgErrMsg.includes("RESOURCE_EXHAUSTED") || imgErrMsg.includes("quota") || imgErrMsg.includes("limit reached")) {
+              isQuotaError = true;
+            }
+          }
+        }
+
+        if (base64DataUrl) {
+          res.json({
+            success: true,
+            mediaType: "image",
+            url: base64DataUrl,
+            prompt: cleanPrompt,
+            caption: `Here is your generated image for "${cleanPrompt}". You can download, regenerate, or ask for variations.`,
+          });
+          return;
+        }
+
+        const errMsg = lastError?.message || "Gemini native image generation did not return image data.";
+        if (isQuotaError) {
+          res.status(429).json({
+            error: "Gemini free-tier image generation quota reached. Please wait a few moments and try again.",
+            isQuota: true,
+          });
+          return;
+        }
+
+        res.status(500).json({
+          error: `Failed to generate image via Gemini API: ${errMsg}`,
+        });
+        return;
       }
 
-      if (!base64DataUrl) {
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-          <defs>
-            <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#0f172a" />
-              <stop offset="50%" stop-color="#1e1b4b" />
-              <stop offset="100%" stop-color="#311042" />
-            </linearGradient>
-            <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#38bdf8" />
-              <stop offset="100%" stop-color="#a855f7" />
-            </linearGradient>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#g)" />
-          <circle cx="${width/2}" cy="${height/2 - 20}" r="${width/4}" fill="url(#glow)" opacity="0.25" />
-          <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="800">Zen AI Media</text>
-          <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="#cbd5e1" font-family="sans-serif" font-size="16" opacity="0.95">${cleanPrompt.slice(0, 55)}</text>
-        </svg>`;
-        base64DataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+      // 2. Video generation via OpenRouter Dedicated Video API (model: bytedance/seedance-2.0:free)
+      const openRouterKey = process.env.OPENROUTER_API_KEY;
+      let videoDataUrl = "";
+      let isRateLimitHit = false;
+      const rateLimitMsg = "You've hit the free video limit for now, try again shortly";
+
+      if (openRouterKey) {
+        // Target model: bytedance/seedance-2.0:free, with bytedance/seedance-2.0 as fallback
+        const videoModels = ["bytedance/seedance-2.0:free", "bytedance/seedance-2.0"];
+
+        for (const model of videoModels) {
+          try {
+            console.log(`[Video Engine] Requesting video generation with model: ${model}`);
+            const postBody: any = {
+              model,
+              prompt: cleanPrompt,
+            };
+            if (imageUrl) {
+              postBody.reference_images = [imageUrl];
+            }
+
+            const initRes = await fetch("https://openrouter.ai/api/v1/videos", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${openRouterKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://ai.studio",
+                "X-Title": "Genex Video Studio",
+              },
+              body: JSON.stringify(postBody),
+            });
+
+            if (initRes.status === 429) {
+              isRateLimitHit = true;
+              break;
+            }
+
+            const initData = await initRes.json().catch(() => ({}));
+
+            if (!initRes.ok) {
+              const errTxt = initData?.error?.message || `HTTP ${initRes.status}`;
+              console.warn(`[Video Engine] Model ${model} returned:`, errTxt);
+
+              if (initRes.status === 429 || errTxt.toLowerCase().includes("rate limit") || errTxt.toLowerCase().includes("quota")) {
+                isRateLimitHit = true;
+                break;
+              }
+
+              if (initRes.status === 402 || errTxt.toLowerCase().includes("credit") || errTxt.toLowerCase().includes("balance")) {
+                isRateLimitHit = true;
+                break;
+              }
+
+              // If 404 No endpoints found for :free, try next candidate
+              continue;
+            }
+
+            // Job created! Poll for completion
+            const jobId = initData?.id || initData?.data?.id;
+            const pollingUrl = initData?.polling_url || (jobId ? `https://openrouter.ai/api/v1/videos/${jobId}` : "");
+
+            if (!pollingUrl) {
+              console.warn("[Video Engine] No polling URL found in job response:", initData);
+              continue;
+            }
+
+            console.log(`[Video Engine] Video job ${jobId} created. Polling every 2.5s...`);
+            const startTime = Date.now();
+            const MAX_POLL_MS = 90000; // 90 second timeout
+            let finishedDownloadUrl = "";
+
+            while (Date.now() - startTime < MAX_POLL_MS) {
+              await new Promise((r) => setTimeout(r, 2500));
+
+              const pollRes = await fetch(pollingUrl, {
+                headers: {
+                  "Authorization": `Bearer ${openRouterKey}`,
+                },
+              });
+
+              if (pollRes.status === 429) {
+                isRateLimitHit = true;
+                break;
+              }
+
+              if (!pollRes.ok) {
+                console.warn(`[Video Engine] Poll status ${pollRes.status}, retrying...`);
+                continue;
+              }
+
+              const pollJson = await pollRes.json().catch(() => ({}));
+              const status = (pollJson?.status || pollJson?.data?.status || "").toLowerCase();
+              console.log(`[Video Engine] Job ${jobId} status: ${status}`);
+
+              if (status === "completed" || status === "succeeded") {
+                const unsignedUrls = pollJson?.unsigned_urls || pollJson?.data?.unsigned_urls;
+                if (Array.isArray(unsignedUrls) && unsignedUrls.length > 0) {
+                  finishedDownloadUrl = unsignedUrls[0];
+                } else if (pollJson?.video_url || pollJson?.data?.video_url) {
+                  finishedDownloadUrl = pollJson?.video_url || pollJson?.data?.video_url;
+                } else if (pollJson?.url || pollJson?.data?.url) {
+                  finishedDownloadUrl = pollJson?.url || pollJson?.data?.url;
+                } else if (jobId) {
+                  finishedDownloadUrl = `https://openrouter.ai/api/v1/videos/${jobId}/content`;
+                }
+                break;
+              }
+
+              if (status === "failed" || status === "error") {
+                console.warn("[Video Engine] Job failed:", pollJson?.error?.message);
+                break;
+              }
+            }
+
+            if (isRateLimitHit) {
+              break;
+            }
+
+            if (finishedDownloadUrl) {
+              console.log(`[Video Engine] Downloading finished video...`);
+              const downloadRes = await fetch(finishedDownloadUrl, {
+                headers: {
+                  "Authorization": `Bearer ${openRouterKey}`,
+                },
+              });
+
+              if (downloadRes.ok) {
+                const arrayBuf = await downloadRes.arrayBuffer();
+                const buffer = Buffer.from(arrayBuf);
+                const mimeType = downloadRes.headers.get("content-type") || "video/mp4";
+                videoDataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+                console.log(`[Video Engine] Video successfully downloaded and encoded (${Math.round(buffer.length / 1024)} KB).`);
+                break;
+              } else {
+                console.warn(`[Video Engine] Video download failed with status ${downloadRes.status}`);
+              }
+            }
+          } catch (modelErr: any) {
+            console.warn(`[Video Engine] Error processing ${model}:`, modelErr?.message || modelErr);
+          }
+        }
       }
 
-      const caption = mediaType === "video"
-        ? `Here is your generated video clip based on "${cleanPrompt}". You can play, pause, loop, or download the media below.`
-        : `Here is your generated image for "${cleanPrompt}". You can download, regenerate, or ask for variations.`;
+      // If rate limit was hit on free-tier endpoint, return 429
+      if (isRateLimitHit) {
+        res.status(429).json({
+          error: rateLimitMsg,
+          isQuota: true,
+        });
+        return;
+      }
 
-      res.json({
-        success: true,
-        mediaType,
-        url: base64DataUrl,
-        prompt: cleanPrompt,
-        caption,
+      // Fallback 1: Gemini Veo video generation if available
+      if (!videoDataUrl) {
+        try {
+          const ai = getGemini();
+          const veoModels = [
+            "veo-3.1-lite-generate-preview",
+            "veo-3.1-fast-generate-preview",
+            "veo-3.1-generate-preview",
+          ];
+          for (const vModel of veoModels) {
+            try {
+              console.log(`[Video Engine] Attempting Gemini video fallback model: ${vModel}`);
+              const op: any = await (ai.models as any).generateVideos({
+                model: vModel,
+                prompt: cleanPrompt,
+                config: {
+                  aspectRatio: "1:1",
+                  durationSeconds: 4,
+                },
+              });
+              if (op && op.done && op.response?.generatedVideos?.[0]?.video?.videoBytes) {
+                const bytes = op.response.generatedVideos[0].video.videoBytes;
+                videoDataUrl = `data:video/mp4;base64,${bytes}`;
+                break;
+              }
+            } catch (veoErr: any) {
+              const msg = veoErr?.message || "";
+              if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+                console.warn(`[Video Engine] Gemini Veo quota limit reached.`);
+              }
+            }
+          }
+        } catch (gemErr) {
+          // Continue to graceful response
+        }
+      }
+
+      // If a video was generated by OpenRouter or Gemini, return it!
+      if (videoDataUrl) {
+        res.json({
+          success: true,
+          mediaType: "video",
+          url: videoDataUrl,
+          prompt: cleanPrompt,
+          caption: `Here is your generated video clip based on "${cleanPrompt}". You can play, pause, loop, or download the video below.`,
+        });
+        return;
+      }
+
+      // If both cloud endpoints are rate-limited or unavailable:
+      res.status(429).json({
+        error: "You've hit the free video limit for now, try again shortly",
+        isQuota: true,
       });
+      return;
     } catch (err: any) {
       console.error("[Zen Media Engine] Error in /api/generate-media:", err);
       res.status(500).json({ error: err?.message || "Failed to generate media. Please try again." });

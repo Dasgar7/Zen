@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertCircle, Check, Download, Play, RefreshCw } from "lucide-react";
+import { AlertCircle, Check, Clock, Download, Play, RefreshCw } from "lucide-react";
 import { GenerativeCanvasLoading } from "./GenerativeCanvasLoading";
 
 interface MediaDisplayBlockProps {
@@ -7,6 +7,8 @@ interface MediaDisplayBlockProps {
   mediaUrl?: string;
   mediaPrompt?: string;
   mediaError?: boolean;
+  errorMessage?: string;
+  buildDuration?: number;
   isLoading?: boolean;
   onRegenerate: (prompt: string, mediaType: "image" | "video") => void;
   onAnimateToVideo?: (prompt: string, imageUrl: string) => void;
@@ -18,6 +20,8 @@ export const MediaDisplayBlock: React.FC<MediaDisplayBlockProps> = ({
   mediaUrl,
   mediaPrompt = "",
   mediaError = false,
+  errorMessage,
+  buildDuration,
   isLoading = false,
   onRegenerate,
   onAnimateToVideo,
@@ -28,19 +32,47 @@ export const MediaDisplayBlock: React.FC<MediaDisplayBlockProps> = ({
 
   // Error state
   if (mediaError) {
+    const isRateLimit =
+      errorMessage?.toLowerCase().includes("free video limit") ||
+      errorMessage?.toLowerCase().includes("rate limit") ||
+      errorMessage?.toLowerCase().includes("shortly") ||
+      errorMessage?.toLowerCase().includes("quota") ||
+      errorMessage?.toLowerCase().includes("cooldown");
+
     return (
-      <div className="my-3 p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300 max-w-lg space-y-2.5 select-none animate-in fade-in duration-200">
+      <div
+        className={`my-3 p-4 rounded-2xl border max-w-lg space-y-2.5 select-none animate-in fade-in duration-200 ${
+          isRateLimit
+            ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200"
+            : "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300"
+        }`}
+      >
         <div className="flex items-center space-x-2 font-semibold text-sm">
-          <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <span>Generation Failed</span>
+          {isRateLimit ? (
+            <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+          )}
+          <span>{isRateLimit ? "Free Video Limit Reached" : "Generation Failed"}</span>
         </div>
-        <p className="text-xs text-red-600 dark:text-red-400">
-          Failed to generate {mediaType}. Please check your prompt or connection and try again.
+        <p
+          className={`text-xs leading-relaxed ${
+            isRateLimit ? "text-amber-800 dark:text-amber-300" : "text-red-600 dark:text-red-400"
+          }`}
+        >
+          {errorMessage || `Failed to generate ${mediaType}. Please check your prompt or connection and try again.`}
         </p>
+        {isRateLimit && (
+          <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 font-mono">
+            Temporary cooldown active • Retrying will request a new job slot
+          </p>
+        )}
         <button
           type="button"
           onClick={() => onRegenerate(mediaPrompt, mediaType)}
-          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+          className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs ${
+            isRateLimit ? "bg-amber-600 hover:bg-amber-700" : "bg-red-600 hover:bg-red-700"
+          }`}
         >
           <RefreshCw className="w-3.5 h-3.5" />
           <span>Try again</span>
@@ -108,7 +140,7 @@ export const MediaDisplayBlock: React.FC<MediaDisplayBlockProps> = ({
           <div className="absolute top-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1.5 bg-black/70 backdrop-blur-md p-1.5 rounded-xl text-white shadow-md">
             <a
               href={mediaUrl}
-              download={isVideo ? `zen_video_${Date.now()}.webm` : `zen_image_${Date.now()}.jpg`}
+              download={isVideo ? `zen_video_${Date.now()}.mp4` : `zen_image_${Date.now()}.jpg`}
               className="p-1.5 rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
               title="Download file"
             >
@@ -117,6 +149,16 @@ export const MediaDisplayBlock: React.FC<MediaDisplayBlockProps> = ({
           </div>
         )}
       </div>
+
+      {/* Completion status badge */}
+      {imageLoaded && (
+        <div className="flex items-center space-x-2">
+          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono text-[11px] font-medium">
+            <Check className="w-3 h-3 text-emerald-500" />
+            <span>Created in {buildDuration ? `${buildDuration}s` : "3s"}</span>
+          </span>
+        </div>
+      )}
 
       {/* Primary Action Buttons */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -144,7 +186,7 @@ export const MediaDisplayBlock: React.FC<MediaDisplayBlockProps> = ({
 
         <a
           href={mediaUrl}
-          download={isVideo ? `zen_video_${Date.now()}.webm` : `zen_image_${Date.now()}.jpg`}
+          download={isVideo ? `zen_video_${Date.now()}.mp4` : `zen_image_${Date.now()}.jpg`}
           className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium transition-colors cursor-pointer"
         >
           <Download className="w-3.5 h-3.5 text-emerald-500" />

@@ -324,14 +324,32 @@ export default function App() {
       const res = await fetch("/api/github/repos", {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await res.text().catch(() => "");
+        console.error("Non-JSON response from /api/github/repos:", res.status, text);
+        setReposError(
+          !res.ok
+            ? `Server returned HTTP ${res.status}: ${text.slice(0, 120) || "Endpoint unavailable"}`
+            : "Received unexpected HTML response from server (rewrite issue). Please try again."
+        );
+        return;
+      }
+
       const data = await res.json();
       if (!res.ok) {
-        setReposError(data.error || "Failed to load repositories.");
+        if (res.status === 401) {
+          setReposError("GitHub access token expired or invalid. Please sign in with GitHub again.");
+        } else {
+          setReposError(data.error || `Failed to load repositories (${res.status}).`);
+        }
       } else {
         setRepoList(data.repos || []);
       }
-    } catch (e) {
-      setReposError("Could not reach GitHub. Check your connection and try again.");
+    } catch (e: any) {
+      console.error("Error fetching GitHub repos:", e);
+      setReposError(e?.message ? `Connection error: ${e.message}` : "Could not reach GitHub. Check your connection and try again.");
     } finally {
       setIsReposLoading(false);
     }
@@ -1998,6 +2016,9 @@ ${code}
     localStorage.removeItem("zen_is_logged_in");
     localStorage.removeItem("zen_user_name");
     localStorage.removeItem("zen_user_email");
+    localStorage.removeItem("zen_github_token");
+    localStorage.removeItem("zen_connected_repo");
+    setConnectedRepo(null);
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -2941,8 +2962,24 @@ ${code}
                 )}
 
                 {!isReposLoading && reposError && (
-                  <div className="p-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    {reposError}
+                  <div className="p-6 text-center text-sm text-zinc-500 dark:text-zinc-400 flex flex-col items-center justify-center space-y-3">
+                    <p>{reposError}</p>
+                    {(reposError.includes("Sign in") ||
+                      reposError.includes("Connect") ||
+                      reposError.includes("expired") ||
+                      reposError.includes("invalid")) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsRepoPickerOpen(false);
+                          setIsAuthOpen(true);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-medium text-xs hover:opacity-90 transition-opacity flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Github className="w-3.5 h-3.5" />
+                        <span>Sign in with GitHub</span>
+                      </button>
+                    )}
                   </div>
                 )}
 

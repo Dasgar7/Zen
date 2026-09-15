@@ -124,8 +124,18 @@ export default async function handler(req: any, res: any) {
               githubToken: ${JSON.stringify(accessToken)}
             };
 
+            // Directly persist token and user details to localStorage in the same origin
+            try {
+              localStorage.setItem("zen_github_token", ${JSON.stringify(accessToken)});
+              localStorage.setItem("zen_is_logged_in", "true");
+              localStorage.setItem("zen_user_name", ${JSON.stringify(displayName)});
+              localStorage.setItem("zen_user_email", ${JSON.stringify(finalEmail)});
+            } catch (e) {}
+
             if (window.opener) {
-              window.opener.postMessage(authData, "*");
+              try {
+                window.opener.postMessage(authData, "*");
+              } catch (e) {}
               setTimeout(() => {
                 window.close();
               }, 500);

@@ -2,9 +2,15 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/github/repos", "destination": "/api/github/repos.ts" },
+    { "source": "/api/github/contents", "destination": "/api/github/contents.ts" },
     { "source": "/api/chat", "destination": "/api/chat.ts" },
     { "source": "/api/auth/github", "destination": "/api/auth/github.ts" },
     { "source": "/api/auth/github/callback", "destination": "/api/auth/github/callback.ts" },
+    { "source": "/api/user-subscription", "destination": "/api/user-subscription.ts" },
+    { "source": "/api/lemon/create-checkout", "destination": "/api/lemon/create-checkout.ts" },
+    { "source": "/api/lemon/manage", "destination": "/api/lemon/manage.ts" },
+    { "source": "/api/lemon/webhook", "destination": "/api/lemon/webhook.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

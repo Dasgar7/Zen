@@ -111,6 +111,16 @@ export const GNX_MODELS: GNXModelOption[] = [
   },
 ];
 
+export const CHAT_ROTATING_PLACEHOLDERS = [
+  "Ask anything...",
+  "How can I help you today?",
+  "What's on your mind?",
+  "Wanna some candy?",
+  "Generate an image of...",
+  "What can you do?",
+  "Type / for commands",
+];
+
 const GEMINI_VOICES = [
   { id: "Aoede", name: "Aoede", gender: "Female", desc: "Warm, natural & lifelike studio female voice" },
   { id: "Puck", name: "Puck", gender: "Male", desc: "Energetic, clear & expressive studio male voice" },
@@ -1413,6 +1423,18 @@ export default function App() {
   const [viewportMode, setViewportMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [previewIframeKey, setPreviewIframeKey] = useState<number>(0);
 
+  // Rotating Placeholder for Chat mode
+  const [chatPlaceholderIndex, setChatPlaceholderIndex] = useState<number>(0);
+  const showRotatingPlaceholder = topLevelMode === "chat" && !isCreateMediaMode && !isWebDevMode;
+
+  useEffect(() => {
+    if (!showRotatingPlaceholder || input) return;
+    const interval = setInterval(() => {
+      setChatPlaceholderIndex((prev) => (prev + 1) % CHAT_ROTATING_PLACEHOLDERS.length);
+    }, 4400);
+    return () => clearInterval(interval);
+  }, [showRotatingPlaceholder, input]);
+
   // Helper to pre-fill input and focus cursor at end
   const applyStarterPrompt = (promptText: string) => {
     setInput(promptText);
@@ -2072,7 +2094,7 @@ ${code}
   // Auto scroll to the latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history, isLoading]);
+  }, [history, isLoading, attachedFiles.length]);
 
   // Handle textarea height adjustment based on content
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -2878,7 +2900,7 @@ ${code}
     );
   };
 
-  const hasChatStarted = history.length > 0;
+  const hasChatStarted = history.length > 0 || (!!activeChatId && savedChats.some((c) => c.id === activeChatId && c.messages?.length > 0));
   const displayHeaderTitle =
     currentChatTitle ||
     (activeChatId ? savedChats.find((c) => c.id === activeChatId)?.title : "") ||
@@ -3186,67 +3208,47 @@ ${code}
               <PanelLeft className="w-5 h-5 stroke-[1.8]" />
             </button>
 
-            {hasChatStarted && (
-              <button
-                type="button"
+            {/* In an active conversation, the collapsed left rail shows ONLY the toggle button.
+                On the home/empty screen, show the full rail (search, bookmark, logo). */}
+            {!hasChatStarted && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(true);
+                    setTimeout(() => sidebarSearchInputRef.current?.focus(), 100);
+                  }}
+                  className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
+                  title="Search conversations"
+                  aria-label="Search conversations"
+                >
+                  <Search className="w-5 h-5 stroke-[1.8]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(true)}
+                  className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
+                  title="Saved chats"
+                  aria-label="Saved chats"
+                >
+                  <Bookmark className="w-5 h-5 stroke-[1.8]" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {!hasChatStarted && (
+            <div className="flex flex-col items-center space-y-3 w-full">
+              <div
+                className="p-1 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
                 onClick={createNewChat}
-                className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
-                title="New chat"
-                aria-label="New chat"
+                title="Zen AI"
               >
-                <Plus className="w-5.5 h-5.5 stroke-[2]" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsMenuOpen(true);
-                setTimeout(() => sidebarSearchInputRef.current?.focus(), 100);
-              }}
-              className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
-              title="Search conversations"
-              aria-label="Search conversations"
-            >
-              <Search className="w-5 h-5 stroke-[1.8]" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen(true)}
-              className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
-              title="Saved chats"
-              aria-label="Saved chats"
-            >
-              <Bookmark className="w-5 h-5 stroke-[1.8]" />
-            </button>
-
-            {hasChatStarted && (
-              <button
-                type="button"
-                onClick={handleShare}
-                className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
-                title={isShareCopied ? "Copied to clipboard!" : "Share conversation"}
-                aria-label="Share conversation"
-              >
-                {isShareCopied ? (
-                  <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400 stroke-[2]" />
-                ) : (
-                  <Share2 className="w-5 h-5 stroke-[1.8]" />
-                )}
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-col items-center space-y-3 w-full">
-            <div
-              className="p-1 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
-              onClick={createNewChat}
-              title="Zen AI"
-            >
-              <GenexLogo className="w-5.5 h-5.5" />
+                <GenexLogo className="w-5.5 h-5.5" />
+              </div>
             </div>
-          </div>
+          )}
         </motion.div>
 
         {/* 2. Expanded Panel Content (When sidebar is open) */}
@@ -3464,77 +3466,40 @@ ${code}
         </motion.div>
       )}
 
-      {/* Desktop Top Header Title (Auto-generated chat title with click to rename) */}
-      {hasChatStarted && (
-        <div className={`hidden md:flex fixed top-3.5 z-30 items-center justify-center transition-all duration-200 ease-out left-1/2 -translate-x-1/2 max-w-[520px]`}>
-          {isHeaderTitleEditing ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveHeaderRename();
-              }}
-              className="flex items-center"
+      {/* Desktop Top Right Header Area (Upgrade + Private Chat) - ONLY on home screen */}
+      {!hasChatStarted && (
+        <div className="hidden md:flex fixed top-3.5 right-4 z-30 items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsPricingOpen(true)}
+            className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-[#48A04C] hover:bg-[#48A04C]/10 transition-colors cursor-pointer"
+            aria-label={subscription.plan === "free" ? "Upgrade plan" : "Manage subscription"}
+          >
+            <PlusSparkleIcon className="w-4 h-4" />
+            <span>{subscription.plan === "free" ? "Upgrade" : "Manage"}</span>
+          </button>
+          {isLoggedIn && (
+            <button
+              type="button"
+              onClick={togglePrivateMode}
+              className={`p-2 rounded-full cursor-pointer transition-all flex items-center justify-center ${
+                isPrivateChat
+                  ? "text-[#48A04C] dark:text-[#48A04C] bg-[#48A04C]/10 border border-[#48A04C]/40 shadow-[0_0_10px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
+                  : "text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+              title={isPrivateChat ? "Private Chat (Active)" : "Private Chat"}
+              aria-label="Toggle Private Chat"
             >
-              <input
-                type="text"
-                value={headerEditingTitle}
-                onChange={(e) => setHeaderEditingTitle(e.target.value)}
-                onBlur={saveHeaderRename}
-                autoFocus
-                maxLength={60}
-                className="px-3 py-1 text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-[#48A04C] shadow-xs w-full max-w-[360px]"
-              />
-            </form>
-          ) : (
-            <div
-              onClick={() => {
-                setHeaderEditingTitle(displayHeaderTitle);
-                setIsHeaderTitleEditing(true);
-              }}
-              className="group flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer select-none"
-              title="Click to rename chat"
-            >
-              <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate max-w-[380px] font-sans">
-                {displayHeaderTitle}
-              </span>
-              <Pencil className="w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-            </div>
+              <Ghost className={`w-5 h-5 ${isPrivateChat ? "stroke-[2.2] text-[#48A04C]" : "stroke-[1.8]"}`} />
+            </button>
           )}
         </div>
       )}
 
-      {/* Desktop Top Right Header Area (Upgrade + Private Chat) */}
-      <div className="hidden md:flex fixed top-3.5 right-4 z-30 items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setIsPricingOpen(true)}
-          className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-[#48A04C] hover:bg-[#48A04C]/10 transition-colors cursor-pointer"
-          aria-label={subscription.plan === "free" ? "Upgrade plan" : "Manage subscription"}
-        >
-          <PlusSparkleIcon className="w-4 h-4" />
-          <span>{subscription.plan === "free" ? "Upgrade" : "Manage"}</span>
-        </button>
-        {isLoggedIn && !hasChatStarted && (
-          <button
-            type="button"
-            onClick={togglePrivateMode}
-            className={`p-2 rounded-full cursor-pointer transition-all flex items-center justify-center ${
-              isPrivateChat
-                ? "text-[#48A04C] dark:text-[#48A04C] bg-[#48A04C]/10 border border-[#48A04C]/40 shadow-[0_0_10px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
-                : "text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
-            title={isPrivateChat ? "Private Chat (Active)" : "Private Chat"}
-            aria-label="Toggle Private Chat"
-          >
-            <Ghost className={`w-5 h-5 ${isPrivateChat ? "stroke-[2.2] text-[#48A04C]" : "stroke-[1.8]"}`} />
-          </button>
-        )}
-      </div>
-
       {/* Top Header Bar - Mobile only */}
       <header className={`md:hidden relative w-full px-4 pt-3.5 pb-2.5 sm:px-6 flex items-center justify-between z-30 shrink-0 transition-all duration-200 ${
         hasChatStarted
-          ? "border-b border-zinc-200/60 dark:border-zinc-800/60 bg-white/85 dark:bg-[#141413]/85 backdrop-blur-md"
+          ? "border-b border-transparent bg-transparent"
           : "border-b border-transparent bg-transparent"
       }`}>
         {/* Left: Menu button */}
@@ -3554,97 +3519,36 @@ ${code}
           </motion.button>
         </div>
 
-        {/* Center branding or Auto-generated Chat Title - Large, bold branding like Lovable */}
-        {!hasChatStarted ? (
+        {/* Center branding - ONLY on home/empty screen */}
+        {!hasChatStarted && (
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2.5 select-none pointer-events-none">
             <GenexLogo className="w-8 h-8 pointer-events-auto shrink-0 drop-shadow-sm" />
             <span className="text-zinc-950 dark:text-white font-extrabold text-[24px] sm:text-[26px] tracking-tight pointer-events-auto font-sans leading-none">
               Zen
             </span>
           </div>
-        ) : (
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center max-w-[55%] xs:max-w-[62%] sm:max-w-[68%] select-none z-10">
-            {isHeaderTitleEditing ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  saveHeaderRename();
-                }}
-                className="flex items-center"
-              >
-                <input
-                  type="text"
-                  value={headerEditingTitle}
-                  onChange={(e) => setHeaderEditingTitle(e.target.value)}
-                  onBlur={saveHeaderRename}
-                  autoFocus
-                  maxLength={60}
-                  className="px-3 py-1.5 text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 focus:ring-[#48A04C] w-full max-w-[210px] xs:max-w-[260px]"
-                />
-              </form>
-            ) : (
-              <div
-                onClick={() => {
-                  setHeaderEditingTitle(displayHeaderTitle);
-                  setIsHeaderTitleEditing(true);
-                }}
-                className="group flex items-center space-x-2 px-2.5 py-1.5 rounded-xl hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
-                title="Click to rename chat"
-              >
-                <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate max-w-[170px] xs:max-w-[220px] sm:max-w-[290px] font-sans">
-                  {displayHeaderTitle}
-                </span>
-                <Pencil className="w-3.5 h-3.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-              </div>
-            )}
-          </div>
         )}
 
-        {/* Right action / New chat & Share / Avatar / Login */}
-        <div className="flex items-center gap-2">
-          {isLoggedIn && !hasChatStarted && (
-            <button
-              type="button"
-              onClick={togglePrivateMode}
-              className={`w-10 h-10 rounded-full cursor-pointer transition-all flex items-center justify-center ${
-                isPrivateChat
-                  ? "text-[#48A04C] dark:text-[#48A04C] bg-[#48A04C]/15 border border-[#48A04C]/50 shadow-[0_0_12px_rgba(72,160,76,0.3)] ring-1 ring-[#48A04C]/40"
-                  : "text-zinc-800 dark:text-zinc-200 bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1]"
-              }`}
-              title={isPrivateChat ? "Private Chat (Active)" : "Private Chat"}
-              aria-label="Toggle Private Chat"
-            >
-              <Ghost className={`w-5 h-5 ${isPrivateChat ? "stroke-[2.2] text-[#48A04C]" : "stroke-[1.8]"}`} />
-            </button>
-          )}
-          {hasChatStarted && (
-            <>
+        {/* Right action / Avatar / Login - ONLY on home/empty screen */}
+        {!hasChatStarted && (
+          <div className="flex items-center gap-2">
+            {isLoggedIn && (
               <button
                 type="button"
-                onClick={createNewChat}
-                className="w-10 h-10 rounded-full bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1] text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer flex items-center justify-center"
-                title="New chat"
+                onClick={togglePrivateMode}
+                className={`w-10 h-10 rounded-full cursor-pointer transition-all flex items-center justify-center ${
+                  isPrivateChat
+                    ? "text-[#48A04C] dark:text-[#48A04C] bg-[#48A04C]/15 border border-[#48A04C]/50 shadow-[0_0_12px_rgba(72,160,76,0.3)] ring-1 ring-[#48A04C]/40"
+                    : "text-zinc-800 dark:text-zinc-200 bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1]"
+                }`}
+                title={isPrivateChat ? "Private Chat (Active)" : "Private Chat"}
+                aria-label="Toggle Private Chat"
               >
-                <SquarePen className="w-5 h-5" />
+                <Ghost className={`w-5 h-5 ${isPrivateChat ? "stroke-[2.2] text-[#48A04C]" : "stroke-[1.8]"}`} />
               </button>
+            )}
 
-              <button
-                type="button"
-                onClick={handleShare}
-                className="w-10 h-10 rounded-full bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1] text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer flex items-center justify-center"
-                title={isShareCopied ? "Copied to clipboard!" : "Share conversation"}
-              >
-                {isShareCopied ? (
-                  <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                ) : (
-                  <Share2 className="w-5 h-5" />
-                )}
-              </button>
-            </>
-          )}
-
-          {!hasChatStarted && (
-            isLoggedIn ? (
+            {isLoggedIn ? (
               <motion.button
                 onClick={() => setIsMenuOpen(true)}
                 whileHover={{ scale: 1.05 }}
@@ -3662,9 +3566,9 @@ ${code}
               >
                 Login
               </button>
-            )
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Private Chat Glitch & Status Banner */}
@@ -3989,7 +3893,7 @@ ${code}
         <>
           {/* Chat Conversation Content Area - ONLY when chat started */}
           {hasChatStarted ? (
-        <div className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-3.5 sm:px-4 pt-6 pb-36 sm:pb-44 lg:pb-48 scrollbar-none flex flex-col space-y-6">
+        <div className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-3.5 sm:px-4 pt-4 sm:pt-6 pb-6 scrollbar-none flex flex-col space-y-6">
           <AnimatePresence initial={false}>
             {history.map((msg, index) => (
               <motion.div
@@ -4187,7 +4091,7 @@ ${code}
       ) : null}
 
       {/* Input / Centerpiece Section */}
-      <div className={`w-full max-w-4xl lg:max-w-3xl mx-auto px-3.5 sm:px-4 bg-transparent ${hasChatStarted ? "pb-6 pt-2 shrink-0 -mt-32 sm:-mt-36 lg:-mt-40 relative z-20 pointer-events-none" : "m-auto flex flex-col justify-center"}`}>
+      <div className={`w-full max-w-4xl lg:max-w-3xl mx-auto px-3.5 sm:px-4 bg-transparent ${hasChatStarted ? "pb-4 sm:pb-6 pt-1.5 shrink-0 relative z-20" : "m-auto flex flex-col justify-center"}`}>
         {/* Centerpiece title - ONLY before chat starts */}
         {!hasChatStarted && (
           <div className="text-center mb-8 sm:mb-10 select-none animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
@@ -4200,21 +4104,28 @@ ${code}
         {/* Dynamic Input Bar - DeepSeek style theme responsive */}
         <form
           onSubmit={handleSubmit}
-          className="w-full relative group shrink-0 bg-transparent pointer-events-auto"
+          className="w-full relative group shrink-0 bg-transparent"
         >
-          <div className={`relative w-full rounded-[20px] sm:rounded-[22px] transition-all duration-300 flex flex-col backdrop-blur-xl ${
-            isPrivateChat
-              ? "bg-[#48A04C]/[0.08] dark:bg-[#48A04C]/[0.12] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
-              : "bg-black/[0.04] dark:bg-white/[0.06] border border-zinc-200/90 dark:border-zinc-700/70 focus-within:border-zinc-300 dark:focus-within:border-zinc-600 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-none"
-          }`}>
+          <motion.div
+            layout
+            transition={{
+              layout: { duration: 0.22, ease: [0.25, 0.1, 0.25, 1.0] }
+            }}
+            className={`relative w-full rounded-[20px] sm:rounded-[22px] flex flex-col backdrop-blur-xl ${
+              isPrivateChat
+                ? "bg-[#48A04C]/[0.08] dark:bg-[#48A04C]/[0.12] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
+                : "bg-black/[0.04] dark:bg-white/[0.06] border border-zinc-200/90 dark:border-zinc-700/70 focus-within:border-zinc-300 dark:focus-within:border-zinc-600 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-none"
+            }`}
+          >
             {/* Attached Files Preview Grid */}
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {attachedFiles.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className={`px-5 pt-4 pb-2 flex flex-wrap gap-2.5 border-b rounded-t-[20px] sm:rounded-t-[22px] ${
+                  transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1.0] }}
+                  className={`px-4 sm:px-5 pt-3 pb-2 flex flex-wrap gap-2.5 border-b rounded-t-[20px] sm:rounded-t-[22px] overflow-hidden ${
                     isPrivateChat
                       ? "border-[#48A04C]/30 bg-transparent"
                       : "border-zinc-200/60 dark:border-zinc-700/60 bg-transparent"
@@ -4265,16 +4176,77 @@ ${code}
               )}
             </AnimatePresence>
 
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder={isCreateMediaMode ? "Describe the image or video you want to create..." : isWebDevMode ? "Describe the website you want to build..." : topLevelMode === "agent" ? "Describe what you want the agent to build or execute..." : "Ask anything..."}
-              className="w-full bg-transparent pt-4 sm:pt-4.5 lg:pt-5 pb-15 sm:pb-16 lg:pb-18 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 text-zinc-900 dark:text-zinc-100 text-base md:text-lg placeholder-zinc-500 dark:placeholder-zinc-400 outline-none resize-none min-h-[114px] sm:min-h-[122px] lg:min-h-[142px] max-h-[260px] leading-relaxed scrollbar-none focus:ring-0 border-0 font-normal rounded-[20px] sm:rounded-[22px]"
-              disabled={isLoading}
-            />
+            {/* Input Textarea Container */}
+            <div className="relative w-full flex-1">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  isCreateMediaMode
+                    ? "Describe the image or video you want to create..."
+                    : isWebDevMode
+                    ? "Describe the website you want to build..."
+                    : topLevelMode === "agent"
+                    ? "Describe what you want to work on or build..."
+                    : showRotatingPlaceholder
+                    ? ""
+                    : "Ask anything..."
+                }
+                aria-label={showRotatingPlaceholder ? CHAT_ROTATING_PLACEHOLDERS[chatPlaceholderIndex] : undefined}
+                className={`w-full bg-transparent outline-none resize-none leading-relaxed scrollbar-none focus:ring-0 border-0 font-normal rounded-[20px] sm:rounded-[22px] text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-400 max-h-[260px] ${
+                  hasChatStarted
+                    ? "pt-3 sm:pt-3.5 pb-11 sm:pb-11.5 pl-4 sm:pl-5 pr-4 sm:pr-5 min-h-[68px] sm:min-h-[72px] text-base"
+                    : "pt-4 sm:pt-4.5 lg:pt-5 pb-15 sm:pb-16 lg:pb-18 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 min-h-[114px] sm:min-h-[122px] lg:min-h-[142px] text-base md:text-lg"
+                }`}
+                disabled={isLoading}
+              />
+
+              {/* Rotating Animated Placeholder (Chat Mode only, empty input) */}
+              {showRotatingPlaceholder && !input && (
+                <div
+                  className={`pointer-events-none absolute left-0 top-0 leading-relaxed font-normal text-zinc-500 dark:text-zinc-400 select-none overflow-hidden max-w-[calc(100%-20px)] ${
+                    hasChatStarted
+                      ? "pt-3 sm:pt-3.5 pl-4 sm:pl-5 pr-4 sm:pr-5 text-base"
+                      : "pt-4 sm:pt-4.5 lg:pt-5 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 text-base md:text-lg"
+                  }`}
+                  aria-hidden="true"
+                >
+                  <div className="grid grid-cols-1 grid-rows-1 items-start w-full">
+                    <AnimatePresence initial={false}>
+                      <motion.span
+                        key={chatPlaceholderIndex}
+                        initial={{ opacity: 0, y: 2, filter: "blur(0px)" }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                          filter: "blur(0px)",
+                          transition: {
+                            duration: 0.4,
+                            delay: 0.1,
+                            ease: [0.25, 0.1, 0.25, 1.0],
+                          },
+                        }}
+                        exit={{
+                          opacity: 0,
+                          y: -2,
+                          filter: "blur(2px)",
+                          transition: {
+                            duration: 0.2,
+                            ease: "easeOut",
+                          },
+                        }}
+                        className="col-start-1 row-start-1 justify-self-start inline-block whitespace-nowrap truncate max-w-full"
+                      >
+                        {CHAT_ROTATING_PLACEHOLDERS[chatPlaceholderIndex]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Hidden File Input */}
             <input
@@ -4286,7 +4258,7 @@ ${code}
             />
 
             {/* Attach Menu Button & Inline Web Dev Mode Tag (Bottom Left) */}
-            <div className="absolute left-3 sm:left-4 bottom-3 sm:bottom-3.5 flex items-center space-x-2 z-20" ref={attachMenuRef}>
+            <div className={`absolute left-3 sm:left-4 ${hasChatStarted ? "bottom-2 sm:bottom-2.5" : "bottom-3 sm:bottom-3.5"} flex items-center space-x-2 z-20`} ref={attachMenuRef}>
               <div className="relative flex items-center justify-center">
                 <button
                   type="button"
@@ -4418,8 +4390,8 @@ ${code}
             </div>
 
             {/* Mode / Send / Stop / Voice & Mic Buttons (Bottom Right) */}
-            <div className="absolute right-3 sm:right-4 bottom-3 sm:bottom-3.5 flex items-center space-x-1.5 z-20">
-              {/* Mode Dropdown Selector Pill Button (Chat vs Agent) */}
+            <div className={`absolute right-3 sm:right-4 ${hasChatStarted ? "bottom-2 sm:bottom-2.5" : "bottom-3 sm:bottom-3.5"} flex items-center space-x-1.5 z-20`}>
+              {/* Mode Dropdown Selector Pill Button (Chat vs Work) */}
               <div className="relative flex items-center justify-center" ref={modeMenuRef}>
                 <button
                   type="button"
@@ -4430,10 +4402,10 @@ ${code}
                       : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
                   }`}
                   aria-label="Select mode"
-                  title="Select mode (Chat or Agent)"
+                  title="Select mode (Chat or Work)"
                 >
                   <span className="capitalize">
-                    {topLevelMode === "chat" ? "Chat" : "Agent"}
+                    {topLevelMode === "chat" ? "Chat" : "Work"}
                   </span>
                   <ChevronDown className={`w-4 h-4 text-zinc-500 dark:text-zinc-400 transition-transform duration-200 ${isModeMenuOpen ? "rotate-180" : ""}`} />
                 </button>
@@ -4451,7 +4423,7 @@ ${code}
                       <div className="space-y-1">
                         {[
                           { id: "chat", name: "Chat" },
-                          { id: "agent", name: "Agent" },
+                          { id: "agent", name: "Work" },
                         ].map((m) => {
                           const isSelected = topLevelMode === m.id;
                           return (
@@ -4534,157 +4506,13 @@ ${code}
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Grok-style persistent indicator text under input bar */}
           {isPrivateChat && (
             <p className="mt-2.5 text-center text-sm font-medium text-[#48A04C] tracking-tight transition-all duration-300 animate-in fade-in select-none">
               This chat won't be saved to your history and won't be used for AI training
             </p>
-          )}
-
-          {/* Dynamic Suggestion Pills - Chat vs Agent modes (Only visible on empty home screen before chat starts) */}
-          {!hasChatStarted && (
-            <div className="flex items-center justify-center flex-wrap gap-2.5 sm:gap-3 mt-3 select-none">
-              {topLevelMode === "chat" ? (
-                <>
-                  {/* Chat Option 1: Write a text */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      applyStarterPrompt("Help me write ");
-                    }}
-                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                      input.startsWith("Help me write")
-                        ? "bg-blue-500/15 dark:bg-blue-500/25 text-blue-600 dark:text-blue-300 border-blue-500/50"
-                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                    }`}
-                    title="Write a text"
-                  >
-                    <PenLine className={`w-4 h-4 ${input.startsWith("Help me write") ? "text-blue-500 dark:text-blue-300" : "text-blue-500"}`} />
-                    <span>Write a text</span>
-                  </button>
-
-                  {/* Chat Option 2: Generate/edit images */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !isCreateMediaMode;
-                      setIsCreateMediaMode(next);
-                      if (next) {
-                        setIsWebDevMode(false);
-                        setTimeout(() => inputRef.current?.focus(), 50);
-                      }
-                    }}
-                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                      isCreateMediaMode
-                        ? "bg-purple-500/15 dark:bg-purple-500/25 text-purple-600 dark:text-purple-300 border-purple-500/50"
-                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                    }`}
-                    title="Generate or edit images"
-                  >
-                    <Wand2 className={`w-4 h-4 ${isCreateMediaMode ? "text-purple-500 dark:text-purple-300" : "text-purple-500"}`} />
-                    <span>Generate/edit images</span>
-                  </button>
-
-                  {/* Chat Option 3: Write code */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      applyStarterPrompt("Write code to ");
-                    }}
-                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                      input.startsWith("Write code to")
-                        ? "bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border-emerald-500/50"
-                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                    }`}
-                    title="Write code"
-                  >
-                    <Code2 className={`w-4 h-4 ${input.startsWith("Write code to") ? "text-emerald-500 dark:text-emerald-300" : "text-emerald-500"}`} />
-                    <span>Write code</span>
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* Agent Option 1: Generate a video */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreateMediaMode(true);
-                      setIsWebDevMode(false);
-                      applyStarterPrompt("Generate a video of ");
-                    }}
-                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                      isCreateMediaMode && input.toLowerCase().includes("video")
-                        ? "bg-purple-500/15 dark:bg-purple-500/25 text-purple-600 dark:text-purple-300 border-purple-500/50"
-                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                    }`}
-                    title="Generate a video"
-                  >
-                    <Video className={`w-4 h-4 ${isCreateMediaMode && input.toLowerCase().includes("video") ? "text-purple-500 dark:text-purple-300" : "text-purple-500"}`} />
-                    <span>Generate a video</span>
-                  </button>
-
-                  {/* Agent Option 2: Build a website or web app */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !isWebDevMode;
-                      setIsWebDevMode(next);
-                      if (next) {
-                        setIsCreateMediaMode(false);
-                        setTimeout(() => inputRef.current?.focus(), 50);
-                      }
-                    }}
-                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                      isWebDevMode
-                        ? "bg-[#48A04C]/15 dark:bg-[#48A04C]/25 text-[#48A04C] dark:text-[#52b857] border-[#48A04C]/50"
-                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                    }`}
-                    title="Build a website or web app"
-                  >
-                    <Globe className={`w-4 h-4 ${isWebDevMode ? "text-[#48A04C] dark:text-[#52b857]" : "text-emerald-500"}`} />
-                    <span>Build a website or web app</span>
-                  </button>
-
-                  {/* Agent Option 3: Build a mobile app */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      applyStarterPrompt("Build a mobile app for ");
-                    }}
-                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                      input.startsWith("Build a mobile app")
-                        ? "bg-amber-500/15 dark:bg-amber-500/25 text-amber-600 dark:text-amber-300 border-amber-500/50"
-                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                    }`}
-                    title="Build a mobile app"
-                  >
-                    <Smartphone className={`w-4 h-4 ${input.startsWith("Build a mobile app") ? "text-amber-500 dark:text-amber-300" : "text-amber-500"}`} />
-                    <span>Build a mobile app</span>
-                  </button>
-
-                  {/* Agent Option 4: Create a game */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsWebDevMode(true);
-                      setIsCreateMediaMode(false);
-                      applyStarterPrompt("Create a playable game with interactive controls where ");
-                    }}
-                    className={`px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-200 cursor-pointer border shadow-xs ${
-                      input.startsWith("Create a playable game")
-                        ? "bg-rose-500/15 dark:bg-rose-500/25 text-rose-600 dark:text-rose-300 border-rose-500/50"
-                        : "bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200/90 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white"
-                    }`}
-                    title="Create a game"
-                  >
-                    <Gamepad2 className={`w-4 h-4 ${input.startsWith("Create a playable game") ? "text-rose-500 dark:text-rose-300" : "text-rose-500"}`} />
-                    <span>Create a game</span>
-                  </button>
-                </>
-              )}
-            </div>
           )}
         </form>
       </div>

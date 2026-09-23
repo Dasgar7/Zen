@@ -12,7 +12,7 @@
   --zen-text-base: 16px;
   --zen-text-msg: 17.5px;
   --zen-text-hud: 16px;
-  --zen-tap-scale: 0.97;
+  --zen-tap-scale: 1;
   --zen-tap-duration: 120ms;
 }
 
@@ -21,7 +21,7 @@
     --zen-text-base: 16px;
     --zen-text-msg: 18px;
     --zen-text-hud: 14px;
-    --zen-tap-scale: 0.97;
+    --zen-tap-scale: 1;
   }
 }
 
@@ -74,46 +74,80 @@ html.dark body,
 }
 
 /* ------------------------------------------------------------------ */
-/* Explicit utility classes (still available)                           */
+/* Native-style press effect (Lovable / iOS clean aesthetic)          */
+/* Zero scale/bounce, subtle brightness shift on active/tap           */
+/* Light mode: shifts slightly darker (~8-10% darkness increase)      */
+/* Dark mode: shifts slightly lighter (~12-15% brightness increase)   */
+/* Fast 120ms transition, smooth ease-out that reverts on release    */
 /* ------------------------------------------------------------------ */
-.zen-tap {
-  transition: transform var(--zen-tap-duration) cubic-bezier(0.2, 0, 0, 1),
-              opacity var(--zen-tap-duration) ease,
-              background-color 0.15s ease,
-              box-shadow 0.15s ease;
+button,
+[role="button"],
+.zen-tap,
+.zen-tap-soft,
+.zen-tap-icon {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  cursor: pointer;
-  will-change: transform;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out, filter 120ms ease-out, opacity 120ms ease-out;
 }
-.zen-tap:active {
-  transform: scale(var(--zen-tap-scale));
-  opacity: 0.92;
+
+/* Native press: Light mode surfaces shift slightly darker */
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]),
+.zen-tap:active,
+.zen-tap-soft:active,
+.zen-tap-icon:active {
+  filter: brightness(0.92);
+  transform: none !important;
+}
+
+/* Native press: Dark mode surfaces shift slightly lighter */
+.dark button:active:not(:disabled),
+html.dark button:active:not(:disabled),
+.dark [role="button"]:active:not([aria-disabled="true"]),
+html.dark [role="button"]:active:not([aria-disabled="true"]),
+.dark .zen-tap:active,
+html.dark .zen-tap:active,
+.dark .zen-tap-soft:active,
+html.dark .zen-tap-soft:active,
+.dark .zen-tap-icon:active,
+html.dark .zen-tap-icon:active {
+  filter: brightness(1.15);
+  transform: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) button:active:not(:disabled),
+  :root:not(.light) [role="button"]:active:not([aria-disabled="true"]),
+  :root:not(.light) .zen-tap:active,
+  :root:not(.light) .zen-tap-soft:active,
+  :root:not(.light) .zen-tap-icon:active {
+    filter: brightness(1.15);
+    transform: none !important;
+  }
+}
+
+/* For ghost/transparent buttons, ensure a subtle tint shift is visible on press */
+button.bg-transparent:active:not(:disabled),
+[role="button"].bg-transparent:active:not([aria-disabled="true"]) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+.dark button.bg-transparent:active:not(:disabled),
+html.dark button.bg-transparent:active:not(:disabled),
+.dark [role="button"].bg-transparent:active:not([aria-disabled="true"]),
+html.dark [role="button"].bg-transparent:active:not([aria-disabled="true"]) {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.zen-tap {
+  cursor: pointer;
 }
 
 .zen-tap-soft {
-  transition: transform var(--zen-tap-duration) cubic-bezier(0.2, 0, 0, 1),
-              opacity var(--zen-tap-duration) ease,
-              background-color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-}
-.zen-tap-soft:active {
-  transform: scale(0.97);
-  opacity: 0.92;
+  cursor: pointer;
 }
 
 .zen-tap-icon {
-  transition: transform var(--zen-tap-duration) cubic-bezier(0.2, 0, 0, 1),
-              background-color 0.15s ease,
-              box-shadow 0.15s ease,
-              opacity 0.12s ease;
-  -webkit-tap-highlight-color: transparent;
-  will-change: transform;
-}
-.zen-tap-icon:active {
-  transform: scale(0.97);
-  opacity: 0.92;
+  cursor: pointer;
 }
 
 .zen-msg-text {
@@ -163,29 +197,36 @@ button:not(:disabled),
 }
 
 @media (hover: none) and (pointer: coarse) {
-  /* Smooth press on almost every tappable element */
+  /* Clean Gemini / native press effect on touch devices - zero scale/bounce */
   button:not(:disabled),
   [role="button"],
   a.cursor-pointer,
   .cursor-pointer {
-    transition: transform 120ms cubic-bezier(0.2, 0, 0, 1),
-                opacity 120ms ease,
-                background-color 0.15s ease !important;
-    will-change: transform;
+    transition: filter 110ms ease-out,
+                background-color 110ms ease-out,
+                opacity 110ms ease-out !important;
   }
 
+  /* Light mode: subtle darkening on press */
   button:not(:disabled):active,
   [role="button"]:active,
   a.cursor-pointer:active,
   .cursor-pointer:active {
-    transform: scale(0.97) !important;
-    opacity: 0.92 !important;
+    filter: brightness(0.92) !important;
+    transform: none !important;
   }
 
-  /* Round icon buttons get consistent subtle scale */
-  button.rounded-full:not(:disabled):active,
-  .rounded-full.cursor-pointer:active {
-    transform: scale(0.97) !important;
+  /* Dark mode: subtle lightening on press */
+  .dark button:not(:disabled):active,
+  html.dark button:not(:disabled):active,
+  .dark [role="button"]:active,
+  html.dark [role="button"]:active,
+  .dark a.cursor-pointer:active,
+  html.dark a.cursor-pointer:active,
+  .dark .cursor-pointer:active,
+  html.dark .cursor-pointer:active {
+    filter: brightness(1.15) !important;
+    transform: none !important;
   }
 }
 
@@ -203,26 +244,10 @@ button:not(:disabled),
     font-weight: 700 !important;
   }
 
-  /* Primary action circles (send / voice) feel larger */
-  button.rounded-full.bg-\[\#48A04C\],
-  button.rounded-full.bg-emerald-500,
-  button.rounded-full.bg-green-500 {
-    min-width: 48px;
-    min-height: 48px;
-  }
-
   /* Composer input feels native */
   textarea {
     font-size: 17px !important;
     line-height: 1.45 !important;
-  }
-
-  /* Slightly larger status / mode pills */
-  .rounded-full.text-xs,
-  .rounded-full.text-\[11px\] {
-    font-size: 13px !important;
-    padding-top: 0.4rem !important;
-    padding-bottom: 0.4rem !important;
   }
 
   /* More breathing room at the bottom for the home indicator */
@@ -268,12 +293,4 @@ button:not(:disabled),
 .zen-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-}
-
-/* Primary green button gets a soft glow on press */
-@media (hover: none) and (pointer: coarse) {
-  button.bg-\[\#48A04C\]:active,
-  button.bg-emerald-500:active {
-    box-shadow: 0 0 0 8px rgba(72, 160, 76, 0.22);
-  }
 }

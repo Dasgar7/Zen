@@ -12,6 +12,8 @@ import { PricingModal } from "./components/PricingModal";
 import { CodeBlock } from "./components/CodeBlock";
 import { CosmicBackground } from "./components/CosmicBackground";
 import { MediaDisplayBlock } from "./components/MediaDisplayBlock";
+import { PWAInstallModal } from "./components/PWAInstallModal";
+import { usePWAInstall } from "./lib/usePWAInstall";
 import { auth, signOut, onAuthStateChanged } from "./lib/firebase";
 
 const PlusSparkleIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
@@ -291,6 +293,8 @@ export default function App() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const { isInstallable, isInstalled, isIOS, install: triggerPWAInstall } = usePWAInstall();
   const [subscription, setSubscription] = useState<{ plan: string; status: string; renewDate: string }>({ plan: "free", status: "active", renewDate: "" });
   const [isTextInputListening, setIsTextInputListening] = useState(false);
   const [isVoiceModeListening, setIsVoiceModeListening] = useState(false);
@@ -516,6 +520,7 @@ export default function App() {
 
   const voiceDropdownRef = useRef<HTMLDivElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
+  const mobileAttachSheetRef = useRef<HTMLDivElement>(null);
   const modeMenuRef = useRef<HTMLDivElement>(null);
   const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -524,7 +529,11 @@ export default function App() {
       if (voiceDropdownRef.current && !voiceDropdownRef.current.contains(e.target as Node)) {
         setIsVoiceDropdownOpen(false);
       }
-      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+      if (
+        attachMenuRef.current &&
+        !attachMenuRef.current.contains(e.target as Node) &&
+        (!mobileAttachSheetRef.current || !mobileAttachSheetRef.current.contains(e.target as Node))
+      ) {
         setIsAttachMenuOpen(false);
       }
       if (modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) {
@@ -2914,7 +2923,7 @@ ${code}
         paddingLeft: isMobile ? 0 : (isMenuOpen ? 280 : 64),
       }}
       transition={sidebarTransition}
-      className="h-screen w-full bg-white dark:bg-[#141413] text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden font-sans relative selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-zinc-100"
+      className="h-screen h-[100dvh] w-full bg-white dark:bg-[#141413] text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden font-sans relative selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-zinc-100 pt-[env(safe-area-inset-top,0px)]"
     >
       {/* Pure crisp background without blur or transparency overlays */}
 
@@ -2932,6 +2941,99 @@ ${code}
           />
         )}
       </AnimatePresence>
+
+      {/* Mobile Attach Menu Native Bottom Sheet (< sm breakpoint) */}
+      <AnimatePresence>
+        {isAttachMenuOpen && (
+          <motion.div
+            key="mobile-attach-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setIsAttachMenuOpen(false)}
+            className="sm:hidden fixed inset-0 bg-black/50 backdrop-blur-[2px] z-[60] cursor-pointer"
+          />
+        )}
+        {isAttachMenuOpen && (
+          <motion.div
+            ref={mobileAttachSheetRef}
+            key="mobile-attach-sheet"
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.04, bottom: 0.7 }}
+            onDragEnd={(_e, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 400) {
+                setIsAttachMenuOpen(false);
+              }
+            }}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{
+              type: "spring",
+              damping: 32,
+              stiffness: 350,
+              mass: 0.8,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="sm:hidden fixed inset-x-0 bottom-0 bg-white dark:bg-[#1a1a19] border-t border-zinc-200/80 dark:border-zinc-800/80 rounded-t-[28px] shadow-2xl z-[61] flex flex-col touch-none select-none"
+          >
+            {/* Grabber Handle Bar */}
+            <div className="w-full pt-3 pb-2 flex items-center justify-center cursor-grab active:cursor-grabbing">
+              <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+            </div>
+
+            {/* Sheet content / Action buttons */}
+            <div className="px-4 pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] pt-1 space-y-2.5">
+              {/* Upload File */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAttachMenuOpen(false);
+                  fileInputRef.current?.click();
+                }}
+                className="w-full flex items-center space-x-3.5 p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-zinc-800/80 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors text-left cursor-pointer border border-zinc-200/60 dark:border-zinc-700/60"
+              >
+                <div className="w-11 h-11 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center text-[#48A04C] shadow-2xs shrink-0 border border-zinc-200/70 dark:border-zinc-800">
+                  <Paperclip className="w-5 h-5 stroke-[2]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-base font-semibold text-zinc-900 dark:text-white leading-tight">Upload file</div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Photos, documents, or media</div>
+                </div>
+              </button>
+
+              {/* Choose a Repo */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAttachMenuOpen(false);
+                  openRepoPicker();
+                }}
+                className="w-full flex items-center space-x-3.5 p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-zinc-800/80 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors text-left cursor-pointer border border-zinc-200/60 dark:border-zinc-700/60"
+              >
+                <div className="w-11 h-11 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center text-zinc-800 dark:text-zinc-200 shadow-2xs shrink-0 border border-zinc-200/70 dark:border-zinc-800">
+                  <Github className="w-5 h-5 stroke-[2]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-base font-semibold text-zinc-900 dark:text-white leading-tight">Choose a repo</div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Connect a GitHub repository</div>
+                </div>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PWA Install Modal */}
+      <PWAInstallModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        isInstallable={isInstallable}
+        isIOS={isIOS}
+        install={triggerPWAInstall}
+      />
 
       {/* Auth Modal Component */}
       <AuthModal
@@ -3140,6 +3242,27 @@ ${code}
                   </div>
                 </div>
 
+                {/* PWA Install */}
+                {!isInstalled && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Install App</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSettingsOpen(false);
+                        setIsInstallModalOpen(true);
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-left flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <Download className="w-4 h-4 text-[#48A04C]" />
+                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Install Zen on this device</span>
+                      </div>
+                      <span className="text-xs text-[#48A04C] font-semibold">Install</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Data Actions */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Data & History</label>
@@ -3180,8 +3303,10 @@ ${code}
             : { x: 0, width: isMenuOpen ? 280 : 64 }
         }
         transition={sidebarTransition}
-        className={`fixed left-0 top-0 bottom-0 z-40 bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 select-none overflow-hidden will-change-transform ${
-          isMobile && isMenuOpen ? "shadow-2xl" : ""
+        className={`fixed left-0 top-0 bottom-0 z-40 select-none overflow-hidden will-change-transform ${
+          isMenuOpen
+            ? "bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-2xl md:shadow-none"
+            : "bg-transparent border-none"
         }`}
       >
         {/* 1. Slim Vertical Rail (Collapsed state on desktop) */}
@@ -3195,9 +3320,9 @@ ${code}
             duration: 0.16,
             ease: [0.2, 0, 0, 1],
           }}
-          className="hidden md:flex flex-col items-center justify-between h-full py-3.5 w-16 absolute inset-y-0 left-0 z-10"
+          className="hidden md:flex flex-col items-center justify-between h-full py-3.5 w-16 absolute inset-y-0 left-0 z-10 bg-transparent border-none"
         >
-          <div className="flex flex-col items-center space-y-3.5 w-full">
+          <div className="flex flex-col items-center space-y-3.5 w-full bg-transparent">
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
@@ -3239,7 +3364,7 @@ ${code}
           </div>
 
           {!hasChatStarted && (
-            <div className="flex flex-col items-center space-y-3 w-full">
+            <div className="flex flex-col items-center space-y-3 w-full bg-transparent">
               <div
                 className="p-1 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
                 onClick={createNewChat}
@@ -3263,7 +3388,7 @@ ${code}
             delay: isMenuOpen ? 0.04 : 0,
             ease: [0.2, 0, 0, 1],
           }}
-          className="flex flex-col h-full w-[280px] shrink-0 text-zinc-900 dark:text-zinc-100 absolute inset-y-0 left-0 z-20"
+          className="flex flex-col h-full w-[280px] shrink-0 text-zinc-900 dark:text-zinc-100 absolute inset-y-0 left-0 z-20 bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80"
         >
             {/* 1. Top Header: Logo on Left, Toggle + Search on Right */}
             <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/60 shrink-0">
@@ -3374,7 +3499,23 @@ ${code}
             </div>
 
             {/* Bottom Fixed Section: User Account Row */}
-            <div className="p-3 border-t border-zinc-200/80 dark:border-zinc-800/80 space-y-2.5 bg-white dark:bg-[#141413] shrink-0 mt-auto">
+            <div className="p-3 border-t border-zinc-200/80 dark:border-zinc-800/80 space-y-2 bg-white dark:bg-[#141413] shrink-0 mt-auto">
+              {!isInstalled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsInstallModalOpen(true);
+                    if (window.innerWidth < 768) setIsMenuOpen(false);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-[#48A04C]/10 hover:bg-[#48A04C]/15 border border-[#48A04C]/30 text-[#48A04C] font-semibold text-xs transition-colors cursor-pointer flex items-center justify-between shadow-2xs"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Install App</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider">PWA</span>
+                </button>
+              )}
               {/* User Account Row */}
               {isLoggedIn ? (
                 showLogoutConfirm ? (
@@ -3504,19 +3645,14 @@ ${code}
       }`}>
         {/* Left: Menu button */}
         <div className="flex items-center">
-          <motion.button
+          <button
+            type="button"
             onClick={() => setIsMenuOpen(true)}
-            whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
             className="w-10 h-10 -ml-1 text-zinc-900 dark:text-zinc-100 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center"
             aria-label="Open Menu"
           >
-            <div className="flex flex-col items-center justify-center space-y-[4px] w-5">
-              <span className="block h-[2px] w-5 bg-current rounded-full" />
-              <span className="block h-[2px] w-5 bg-current rounded-full" />
-              <span className="block h-[2px] w-5 bg-current rounded-full" />
-            </div>
-          </motion.button>
+            <PanelLeft className="w-5 h-5 stroke-[1.8]" />
+          </button>
         </div>
 
         {/* Center branding - ONLY on home/empty screen */}
@@ -3532,6 +3668,17 @@ ${code}
         {/* Right action / Avatar / Login - ONLY on home/empty screen */}
         {!hasChatStarted && (
           <div className="flex items-center gap-2">
+            {!isInstalled && (
+              <button
+                type="button"
+                onClick={() => setIsInstallModalOpen(true)}
+                className="w-10 h-10 rounded-full cursor-pointer transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-200 bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1]"
+                title="Install Zen App"
+                aria-label="Install Zen App"
+              >
+                <Download className="w-4.5 h-4.5 text-[#48A04C]" />
+              </button>
+            )}
             {isLoggedIn && (
               <button
                 type="button"
@@ -3549,15 +3696,14 @@ ${code}
             )}
 
             {isLoggedIn ? (
-              <motion.button
+              <button
+                type="button"
                 onClick={() => setIsMenuOpen(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
                 className="w-10 h-10 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-xs cursor-pointer select-none uppercase ml-1"
                 title="Account Menu"
               >
                 {userName ? userName.trim().charAt(0).toUpperCase() : "U"}
-              </motion.button>
+              </button>
             ) : (
               <button
                 type="button"
@@ -3893,7 +4039,7 @@ ${code}
         <>
           {/* Chat Conversation Content Area - ONLY when chat started */}
           {hasChatStarted ? (
-        <div className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-3.5 sm:px-4 pt-4 sm:pt-6 pb-6 scrollbar-none flex flex-col space-y-6">
+        <div className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-3.5 sm:px-4 pt-4 sm:pt-6 pb-32 sm:pb-6 scrollbar-none flex flex-col space-y-6">
           <AnimatePresence initial={false}>
             {history.map((msg, index) => (
               <motion.div
@@ -4090,11 +4236,26 @@ ${code}
         </div>
       ) : null}
 
+      {/* Mobile Greeting / Centerpiece - ONLY before chat starts on mobile */}
+      {!hasChatStarted && (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 select-none pb-28 sm:hidden">
+          <h2 className="text-zinc-900 dark:text-zinc-100 text-2xl font-extrabold tracking-tight">
+            How can I help you{isLoggedIn && userName ? `, ${userName}` : ""}?
+          </h2>
+        </div>
+      )}
+
       {/* Input / Centerpiece Section */}
-      <div className={`w-full max-w-4xl lg:max-w-3xl mx-auto px-3.5 sm:px-4 bg-transparent ${hasChatStarted ? "pb-4 sm:pb-6 pt-1.5 shrink-0 relative z-20" : "m-auto flex flex-col justify-center"}`}>
-        {/* Centerpiece title - ONLY before chat starts */}
+      <div
+        className={`w-full max-w-4xl lg:max-w-3xl mx-auto ${
+          hasChatStarted
+            ? "fixed sm:relative inset-x-0 bottom-0 sm:bottom-auto z-30 sm:z-20 px-3 sm:px-4 pb-[max(10px,env(safe-area-inset-bottom))] sm:pb-6 pt-2 sm:pt-1.5 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#141413] dark:via-[#141413]/95 dark:to-transparent sm:bg-transparent sm:dark:bg-transparent shrink-0"
+            : "fixed sm:relative inset-x-0 bottom-0 sm:bottom-auto z-30 sm:z-20 px-3 sm:px-4 pb-[max(10px,env(safe-area-inset-bottom))] sm:pb-0 pt-2 sm:pt-0 sm:m-auto sm:flex sm:flex-col sm:justify-center bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#141413] dark:via-[#141413]/95 dark:to-transparent sm:bg-transparent sm:dark:bg-transparent"
+        }`}
+      >
+        {/* Centerpiece title - ONLY on desktop/tablet before chat starts */}
         {!hasChatStarted && (
-          <div className="text-center mb-8 sm:mb-10 select-none animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
+          <div className="hidden sm:block text-center mb-8 sm:mb-10 select-none animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
             <h2 className="text-zinc-900 dark:text-zinc-100 text-3xl sm:text-[42px] font-extrabold tracking-tight">
               How can I help you{isLoggedIn && userName ? `, ${userName}` : ""}?
             </h2>
@@ -4106,11 +4267,7 @@ ${code}
           onSubmit={handleSubmit}
           className="w-full relative group shrink-0 bg-transparent"
         >
-          <motion.div
-            layout
-            transition={{
-              layout: { duration: 0.22, ease: [0.25, 0.1, 0.25, 1.0] }
-            }}
+          <div
             className={`relative w-full rounded-[20px] sm:rounded-[22px] flex flex-col backdrop-blur-xl ${
               isPrivateChat
                 ? "bg-[#48A04C]/[0.08] dark:bg-[#48A04C]/[0.12] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
@@ -4198,8 +4355,8 @@ ${code}
                 aria-label={showRotatingPlaceholder ? CHAT_ROTATING_PLACEHOLDERS[chatPlaceholderIndex] : undefined}
                 className={`w-full bg-transparent outline-none resize-none leading-relaxed scrollbar-none focus:ring-0 border-0 font-normal rounded-[20px] sm:rounded-[22px] text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-400 max-h-[260px] ${
                   hasChatStarted
-                    ? "pt-3 sm:pt-3.5 pb-11 sm:pb-11.5 pl-4 sm:pl-5 pr-4 sm:pr-5 min-h-[68px] sm:min-h-[72px] text-base"
-                    : "pt-4 sm:pt-4.5 lg:pt-5 pb-15 sm:pb-16 lg:pb-18 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 min-h-[114px] sm:min-h-[122px] lg:min-h-[142px] text-base md:text-lg"
+                    ? "pt-3 sm:pt-3.5 pb-13 sm:pb-11.5 pl-4 sm:pl-5 pr-4 sm:pr-5 min-h-[72px] sm:min-h-[72px] text-base"
+                    : "pt-3.5 sm:pt-4.5 lg:pt-5 pb-13 sm:pb-16 lg:pb-18 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 min-h-[76px] sm:min-h-[122px] lg:min-h-[142px] text-base md:text-lg"
                 }`}
                 disabled={isLoading}
               />
@@ -4258,12 +4415,12 @@ ${code}
             />
 
             {/* Attach Menu Button & Inline Web Dev Mode Tag (Bottom Left) */}
-            <div className={`absolute left-3 sm:left-4 ${hasChatStarted ? "bottom-2 sm:bottom-2.5" : "bottom-3 sm:bottom-3.5"} flex items-center space-x-2 z-20`} ref={attachMenuRef}>
-              <div className="relative flex items-center justify-center">
+            <div className="absolute left-3 sm:left-4 bottom-2 sm:bottom-3 flex items-center space-x-1.5 sm:space-x-2 z-20 transition-all duration-200 ease-out" ref={attachMenuRef}>
+              <div className="relative flex items-center justify-center shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsAttachMenuOpen(!isAttachMenuOpen)}
-                  className={`w-8 h-8 rounded-full transition-colors duration-150 cursor-pointer shrink-0 flex items-center justify-center ${
+                  className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-colors duration-150 cursor-pointer shrink-0 flex items-center justify-center ${
                     isAttachMenuOpen
                       ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white rotate-45"
                       : "text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
@@ -4271,10 +4428,10 @@ ${code}
                   aria-label="Upload file"
                   title="Upload file"
                 >
-                  <Plus className="w-5 h-5 stroke-[2] transition-transform duration-200" />
+                  <Plus className="w-5 h-5 sm:w-4.5 sm:h-4.5 stroke-[2] transition-transform duration-200" />
                 </button>
 
-                {/* Attach Popup Menu */}
+                {/* Attach Popup Menu (Desktop & Tablet only) */}
                 <AnimatePresence>
                   {isAttachMenuOpen && (
                     <motion.div
@@ -4282,7 +4439,7 @@ ${code}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
                       transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
-                      className="absolute left-0 bottom-full mb-2.5 w-52 sm:w-56 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
+                      className="hidden sm:block absolute left-0 bottom-full mb-2.5 w-52 sm:w-56 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
                     >
                       {/* Option: Upload File */}
                       <button
@@ -4390,13 +4547,13 @@ ${code}
             </div>
 
             {/* Mode / Send / Stop / Voice & Mic Buttons (Bottom Right) */}
-            <div className={`absolute right-3 sm:right-4 ${hasChatStarted ? "bottom-2 sm:bottom-2.5" : "bottom-3 sm:bottom-3.5"} flex items-center space-x-1.5 z-20`}>
-              {/* Mode Dropdown Selector Pill Button (Chat vs Work) */}
-              <div className="relative flex items-center justify-center" ref={modeMenuRef}>
+            <div className="absolute right-3 sm:right-4 bottom-2 sm:bottom-3 flex items-center space-x-1.5 sm:space-x-2 z-20 transition-all duration-200 ease-out">
+              {/* Mode Dropdown Selector Pill Button (Chat vs Work) - static, no fly-in */}
+              <div className="relative flex items-center justify-center shrink-0" ref={modeMenuRef}>
                 <button
                   type="button"
                   onClick={() => setIsModeMenuOpen(!isModeMenuOpen)}
-                  className={`h-9 px-3.5 sm:px-4 rounded-full text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer flex items-center space-x-1.5 select-none ${
+                  className={`h-9 sm:h-8 px-3 rounded-full text-sm sm:text-xs font-semibold transition-colors duration-150 cursor-pointer flex items-center space-x-1 select-none shrink-0 ${
                     isModeMenuOpen
                       ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white"
                       : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
@@ -4407,18 +4564,18 @@ ${code}
                   <span className="capitalize">
                     {topLevelMode === "chat" ? "Chat" : "Work"}
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-zinc-500 dark:text-zinc-400 transition-transform duration-200 ${isModeMenuOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-zinc-500 dark:text-zinc-400 transition-transform duration-200 ${isModeMenuOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {/* Mode Popup Menu */}
                 <AnimatePresence>
                   {isModeMenuOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
-                      className="absolute right-0 top-full mt-2 w-40 sm:w-44 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute right-0 bottom-full mb-2.5 w-40 sm:w-44 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
                     >
                       <div className="space-y-1">
                         {[
@@ -4455,58 +4612,58 @@ ${code}
                 </AnimatePresence>
               </div>
 
-              {/* Microphone Button - Simple Speech to Text into Input Field */}
-              <div className="relative group/mic flex items-center justify-center">
+              {/* Microphone Button - Simple Speech to Text into Input Field - static, no fly-in */}
+              <div className="relative group/mic flex items-center justify-center shrink-0">
                 <button
                   type="button"
                   onClick={toggleTextInputMic}
-                  className={`w-8 h-8 rounded-full transition-colors duration-150 cursor-pointer flex items-center justify-center ${
+                  className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-colors duration-150 cursor-pointer flex items-center justify-center shrink-0 ${
                     isTextInputListening
                       ? "text-red-600 dark:text-red-400 bg-red-100/80 dark:bg-red-950/60 animate-pulse"
                       : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
                   }`}
                   aria-label={isTextInputListening ? "Stop recording" : "Voice input"}
                 >
-                  <Mic className="w-5 h-5" />
+                  <Mic className="w-5 h-5 sm:w-4.5 sm:h-4.5" />
                 </button>
                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-medium rounded-md opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity duration-150 delay-150 whitespace-nowrap shadow-sm z-30">
                   {isTextInputListening ? "Stop recording" : "Voice input"}
                 </div>
               </div>
 
-              {/* Green Voice Call Button (opens GNX Voice Mode) / Send Button */}
-              <div>
+              {/* Green Voice Call Button (opens GNX Voice Mode) / Send Button - proportional w-10 h-10 mobile, w-8 h-8 desktop */}
+              <div className="flex items-center justify-center shrink-0 w-10 h-10 sm:w-8 sm:h-8">
                 {isLoading ? (
                   <button
                     type="button"
                     onClick={handleStopGeneration}
-                    className="w-9 h-9 rounded-full flex items-center justify-center bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-950 cursor-pointer shadow-xs border border-zinc-600 dark:border-zinc-300 group"
+                    className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-950 cursor-pointer shadow-xs border border-zinc-600 dark:border-zinc-300 group shrink-0"
                     title="Stop generating"
                   >
-                    <Square className="w-4 h-4 fill-current text-white dark:text-zinc-950" />
+                    <Square className="w-4 h-4 sm:w-3.5 sm:h-3.5 fill-current text-white dark:text-zinc-950" />
                   </button>
                 ) : input.trim() || attachedFiles.length > 0 ? (
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-9 h-9 rounded-full flex items-center justify-center bg-[#48A04C] hover:bg-[#3E8A42] transition-colors duration-200 cursor-pointer text-white shadow-xs group"
+                    className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-[#48A04C] hover:bg-[#3E8A42] transition-colors duration-150 cursor-pointer text-white shadow-xs group shrink-0"
                     title="Send message"
                   >
-                    <ArrowUp className="w-5 h-5 stroke-[2.5]" />
+                    <ArrowUp className="w-5 h-5 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={startVoiceCallMode}
-                    className="voice-button-trigger w-9 h-9 rounded-full flex items-center justify-center cursor-pointer text-white shadow-xs transition-colors duration-200 bg-[#48A04C] hover:bg-[#3E8A42]"
+                    className="voice-button-trigger w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center cursor-pointer text-white shadow-xs transition-colors duration-150 bg-[#48A04C] hover:bg-[#3E8A42] shrink-0"
                     title="Start voice call"
                   >
-                    <AudioWaveformIcon className="w-5 h-5 text-white" />
+                    <AudioWaveformIcon className="w-4.5 h-4.5 sm:w-4 sm:h-4 text-white" />
                   </button>
                 )}
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Grok-style persistent indicator text under input bar */}
           {isPrivateChat && (

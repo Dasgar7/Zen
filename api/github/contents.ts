@@ -44,9 +44,8 @@ export default async function handler(req: any, res: any) {
       if (!owner || !repo) {
         return res.status(400).json({ error: "owner and repo are required" });
       }
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(
-        path
-      ).replace(/%2F/g, "/")}${ref ? `?ref=${encodeURIComponent(ref)}` : ""}`;
+      const cleanPath = path && path.trim() ? `/${encodeURIComponent(path.trim()).replace(/%2F/g, "/")}` : "";
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents${cleanPath}${ref ? `?ref=${encodeURIComponent(ref)}` : ""}`;
 
       const ghRes = await githubFetch(token, url);
       const data = await ghRes.json();

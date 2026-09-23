@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import fs from "fs";
+import { execFile } from "child_process";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
@@ -106,48 +107,44 @@ async function startServer() {
   // SMARTNESS LADDER MODEL CONFIGURATION
   // ==========================================
   // Level 1: Primary Model (OpenRouter Free) - Attempted FIRST for every single request
-  const LEVEL_1_PRIMARY_MODEL = "z-ai/glm-5.2:free";
+  const LEVEL_1_PRIMARY_MODEL = "liquid/lfm-2.5-2.6b:free";
 
   // Level 2: High-Capability Free OpenRouter Models (Fallback Tier 1)
   const LEVEL_2_OPENROUTER_MODELS = [
-    "minimax/minimax-m3:free",
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "z-ai/glm-5.2:free",
     "minimax/minimax-m2.7:free",
-    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
   ];
 
   // Level 3: High-Performance Free Groq Models (Fallback Tier 2)
   const LEVEL_3_GROQ_MODELS = [
-    "qwen/qwen3.8-27b",
     "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
     "groq/compound",
     "qwen/qwen3.6-27b",
-    "openai/gpt-oss-20b",
   ];
 
   // Level 4: Gemini Models (Fallback Tier 3)
   function getLevel4GeminiModels(requestedModelId?: string): string[] {
     if (requestedModelId === "pro") {
       return [
-        "gemini-3.1-pro-preview",
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
-        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
       ];
     } else if (requestedModelId === "mini") {
       return [
-        "gemini-3.5-flash-lite",
         "gemini-3.1-flash-lite",
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
+        "gemini-2.5-flash",
+        "gemini-3-flash-preview",
       ];
     }
     return [
-      "gemini-3.7-flash",
-      "gemini-flash-latest",
-      "gemini-3.5-flash-lite",
+      "gemini-2.5-flash",
+      "gemini-3-flash-preview",
       "gemini-3.1-flash-lite",
     ];
   }
@@ -586,12 +583,11 @@ async function startServer() {
       res.end();
     };
 
-    // LEVEL 1: PRIMARY MODEL (GLM 5.2 via OpenRouter) - Tried first on every new request
+    // LEVEL 1: PRIMARY MODEL (Liquid via OpenRouter) - Tried first on every new request
     if (orKey && !isClientDisconnected) {
       try {
         console.log(`[GNX Smartness Ladder] Level 1 Streaming (Primary): Attempting ${LEVEL_1_PRIMARY_MODEL}...`);
         sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
-        sendSSE({ type: "reset" });
 
         const fullText = await streamOpenAICompatibleSSE(
           "https://openrouter.ai/api/v1/chat/completions",
@@ -606,7 +602,6 @@ async function startServer() {
         return;
       } catch (err: any) {
         console.log(`[GNX Smartness Ladder] Level 1 busy/rate-limited (${err.message}). Transitioning to Level 2...`);
-        sendSSE({ type: "reset" });
       }
     }
 
@@ -615,17 +610,20 @@ async function startServer() {
       console.log(`[GNX Smartness Ladder] Level 2 Streaming: Attempting OpenRouter free pool...`);
       for (const model of LEVEL_2_OPENROUTER_MODELS) {
         if (isClientDisconnected) break;
+        let chunksSent = 0;
         try {
           console.log(`[GNX Smartness Ladder] Level 2 trying: ${model}`);
           sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
-          sendSSE({ type: "reset" });
 
           const fullText = await streamOpenAICompatibleSSE(
             "https://openrouter.ai/api/v1/chat/completions",
             orKey,
             model,
             messages,
-            (chunk) => sendSSE({ type: "chunk", text: chunk })
+            (chunk) => {
+              chunksSent++;
+              sendSSE({ type: "chunk", text: chunk });
+            }
           );
 
           console.log(`[GNX Model Routing] Handled by Level 2: ${model} (OpenRouter)`);
@@ -633,7 +631,7 @@ async function startServer() {
           return;
         } catch (err: any) {
           console.log(`[GNX Smartness Ladder] Level 2 model ${model} skipped (${err.message})`);
-          sendSSE({ type: "reset" });
+          if (chunksSent > 0) sendSSE({ type: "reset" });
         }
       }
       console.log(`[GNX Smartness Ladder] Level 2 complete. Transitioning to Level 3...`);
@@ -644,17 +642,20 @@ async function startServer() {
       console.log(`[GNX Smartness Ladder] Level 3 Streaming: Attempting Groq free pool...`);
       for (const model of LEVEL_3_GROQ_MODELS) {
         if (isClientDisconnected) break;
+        let chunksSent = 0;
         try {
           console.log(`[GNX Smartness Ladder] Level 3 trying: ${model}`);
           sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
-          sendSSE({ type: "reset" });
 
           const fullText = await streamOpenAICompatibleSSE(
             "https://api.groq.com/openai/v1/chat/completions",
             groqKey,
             model,
             messages,
-            (chunk) => sendSSE({ type: "chunk", text: chunk })
+            (chunk) => {
+              chunksSent++;
+              sendSSE({ type: "chunk", text: chunk });
+            }
           );
 
           console.log(`[GNX Model Routing] Handled by Level 3: ${model} (Groq)`);
@@ -662,7 +663,7 @@ async function startServer() {
           return;
         } catch (err: any) {
           console.log(`[GNX Smartness Ladder] Level 3 model ${model} skipped (${err.message})`);
-          sendSSE({ type: "reset" });
+          if (chunksSent > 0) sendSSE({ type: "reset" });
         }
       }
       console.log(`[GNX Smartness Ladder] Level 3 complete. Transitioning to Level 4...`);
@@ -682,10 +683,10 @@ async function startServer() {
 
       for (const model of geminiModels) {
         if (isClientDisconnected) break;
+        let chunksSent = 0;
         try {
           console.log(`[GNX Smartness Ladder] Level 4 trying: ${model}`);
           sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
-          sendSSE({ type: "reset" });
 
           let modelText = "";
           let searchSources: Array<{ title: string; url: string }> = [];
@@ -720,6 +721,7 @@ async function startServer() {
 
             const chunkText = chunk.text || "";
             if (chunkText) {
+              chunksSent++;
               modelText += chunkText;
               sendSSE({ type: "chunk", text: chunkText });
             }
@@ -732,7 +734,7 @@ async function startServer() {
           }
         } catch (err: any) {
           console.log(`[GNX Smartness Ladder] Level 4 model ${model} skipped (${err.message})`);
-          sendSSE({ type: "reset" });
+          if (chunksSent > 0) sendSSE({ type: "reset" });
         }
       }
       console.log(`[GNX Smartness Ladder] Level 4 complete. Transitioning to Level 5 (Safety Net)...`);
@@ -743,9 +745,9 @@ async function startServer() {
       console.log(`[GNX Smartness Ladder] Level 5 Streaming: Attempting safety net pool...`);
       for (const entry of LEVEL_5_SAFETY_NET_MODELS) {
         if (isClientDisconnected) break;
+        let chunksSent = 0;
         try {
           sendSSE({ type: "start", modelId: requestedModelId || "thinking" });
-          sendSSE({ type: "reset" });
 
           if (entry.provider === "openrouter" && orKey) {
             const fullText = await streamOpenAICompatibleSSE(
@@ -753,7 +755,10 @@ async function startServer() {
               orKey,
               entry.model,
               messages,
-              (chunk) => sendSSE({ type: "chunk", text: chunk })
+              (chunk) => {
+                chunksSent++;
+                sendSSE({ type: "chunk", text: chunk });
+              }
             );
             console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (OpenRouter Safety Net)`);
             finishStreamSuccess(fullText);
@@ -764,7 +769,10 @@ async function startServer() {
               groqKey,
               entry.model,
               messages,
-              (chunk) => sendSSE({ type: "chunk", text: chunk })
+              (chunk) => {
+                chunksSent++;
+                sendSSE({ type: "chunk", text: chunk });
+              }
             );
             console.log(`[GNX Model Routing] Handled by Level 5: ${entry.model} (Groq Safety Net)`);
             finishStreamSuccess(fullText);
@@ -784,7 +792,7 @@ async function startServer() {
           }
         } catch (err: any) {
           console.log(`[GNX Smartness Ladder] Level 5 model ${entry.model} failed: ${err.message}`);
-          sendSSE({ type: "reset" });
+          if (chunksSent > 0) sendSSE({ type: "reset" });
         }
       }
     }
@@ -819,7 +827,7 @@ async function startServer() {
         } catch (keyErr: any) {
           console.error("[Zen Media Engine] Gemini API key error:", keyErr);
           res.status(500).json({
-            error: "Gemini API key is not configured. Please ensure GEMINI_API_KEY is available in Settings > Secrets.",
+            error: "AI engine key is not configured. Please ensure GEMINI_API_KEY is available in Settings > Secrets.",
             isApiKeyMissing: true,
           });
           return;
@@ -882,29 +890,32 @@ async function startServer() {
           }
         }
 
-        // Additional fallback within Gemini API if generateContent Nano Banana didn't return data
+        // Additional fallback: Ultra-fast neural image generation engine (Flux / SDXL via Pollinations)
         if (!base64DataUrl) {
           try {
-            console.log(`[Zen Media Engine] Attempting Gemini native Imagen fallback for "${cleanPrompt.slice(0, 40)}..."`);
-            const imagenRes = await ai.models.generateImages({
-              model: "imagen-3.0-generate-002",
-              prompt: cleanPrompt,
-              config: {
-                numberOfImages: 1,
-                outputMimeType: "image/jpeg",
-                aspectRatio: "1:1",
-              },
+            console.log(`[Zen Media Engine] Attempting neural image fallback for "${cleanPrompt.slice(0, 40)}..."`);
+            const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
+            const downloadedBuffer = await new Promise<Buffer | null>((resolve) => {
+              execFile(
+                "curl",
+                ["-s", "-L", "--max-time", "18", fallbackUrl],
+                { encoding: "buffer", maxBuffer: 15 * 1024 * 1024 },
+                (err, stdout) => {
+                  if (err || !stdout || stdout.length < 500) {
+                    resolve(null);
+                  } else {
+                    resolve(stdout);
+                  }
+                }
+              );
             });
-            if (imagenRes.generatedImages && imagenRes.generatedImages.length > 0 && imagenRes.generatedImages[0].image?.imageBytes) {
-              base64DataUrl = `data:image/jpeg;base64,${imagenRes.generatedImages[0].image.imageBytes}`;
-              console.log("[Zen Media Engine] Successfully generated image with Gemini Imagen fallback");
+
+            if (downloadedBuffer && downloadedBuffer.length > 500) {
+              base64DataUrl = `data:image/jpeg;base64,${downloadedBuffer.toString("base64")}`;
+              console.log("[Zen Media Engine] Successfully generated image via neural fallback engine");
             }
-          } catch (imagenErr: any) {
-            const imgErrMsg = imagenErr?.message || String(imagenErr);
-            console.warn("[Zen Media Engine] Gemini Imagen fallback unavailable:", imgErrMsg);
-            if (imgErrMsg.includes("429") || imgErrMsg.includes("RESOURCE_EXHAUSTED") || imgErrMsg.includes("quota") || imgErrMsg.includes("limit reached")) {
-              isQuotaError = true;
-            }
+          } catch (fbErr: any) {
+            console.warn("[Zen Media Engine] Neural fallback image engine failed:", fbErr?.message || fbErr);
           }
         }
 
@@ -919,17 +930,17 @@ async function startServer() {
           return;
         }
 
-        const errMsg = lastError?.message || "Gemini native image generation did not return image data.";
+        const errMsg = lastError?.message || "Image generation did not return image data.";
         if (isQuotaError) {
           res.status(429).json({
-            error: "Gemini free-tier image generation quota reached. Please wait a few moments and try again.",
+            error: "Image generation request limit reached. Please wait a few moments and try again.",
             isQuota: true,
           });
           return;
         }
 
         res.status(500).json({
-          error: `Failed to generate image via Gemini API: ${errMsg}`,
+          error: `Failed to generate image: ${errMsg}`,
         });
         return;
       }
@@ -1332,7 +1343,7 @@ User Message:
   // API Routes
   app.post("/api/chat", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { message, parts, history, modelId: rawModelId, userMemoryContext, isWebDevMode, isVoiceCall, topLevelMode } = req.body;
+      const { message, parts, history, modelId: rawModelId, userMemoryContext, isWebDevMode, isVoiceCall, topLevelMode, connectedRepo } = req.body;
       const ai = getGemini();
 
       // Smart automatic model routing based on topLevelMode (Agent vs Chat)
@@ -1394,6 +1405,12 @@ Guidelines for Web Dev output:
    - Preserve all existing features: 1st-person controls, mining/placing blocks, inventory, hotbar selection, day/night cycles, and save/load world states.`;
       }
 
+      if (connectedRepo && connectedRepo.fullName) {
+        systemInstruction += `\n\n### CONNECTED GITHUB REPOSITORY:
+The user has connected their GitHub repository: "${connectedRepo.fullName}" (branch: ${connectedRepo.defaultBranch || "main"}).
+You are actively connected to this repository. When the user asks about the repo, its files, architecture, or asks you to write code or update files for it, reference this repository directly and produce production-ready code or instructions.`;
+      }
+
       if (userMemoryContext && typeof userMemoryContext === "string" && userMemoryContext.trim()) {
         systemInstruction += `\n\n### CRITICAL DIRECTIVE - PERSISTENT LONG-TERM MEMORY & CONVERSATION RECALL:
 You have ACTIVE PERSISTENT MEMORY across all past user chat sessions, tasks, code, and conversations in Zen.
@@ -1421,10 +1438,10 @@ ${userMemoryContext.trim()}`;
       const isQuota = errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("limit reached");
       if (!res.headersSent) {
         if (isQuota) {
-          res.status(429).json({ error: "Gemini API request limit reached. Please wait a few seconds and try again." });
+          res.status(429).json({ error: "GNX Rout request limit reached. Please wait a few seconds and try again." });
         } else {
           console.error("Error in /api/chat:", error);
-          res.status(500).json({ error: errMsg || "An unexpected error occurred with Gemini API." });
+          res.status(500).json({ error: errMsg || "An unexpected error occurred with GNX Rout." });
         }
       }
     }
@@ -1488,13 +1505,13 @@ app.post("/api/tts", async (req: Request, res: Response, next: NextFunction): Pr
       return;
     }
 
-    const ttsModels = ["gemini-3.1-flash-tts-preview"];
+    const ttsModels = ["gemini-2.5-flash-preview-tts", "gemini-3.1-flash-tts-preview"];
     let audioData: string | null = null;
     let audioMime: string = "audio/wav";
 
     for (const ttsModel of ttsModels) {
       try {
-        console.log(`Generating Gemini TTS with model: ${ttsModel}, voice: ${voiceName}`);
+        console.log(`Generating voice audio with model: ${ttsModel}, voice: ${voiceName}`);
         const ttsResponse = await ai.models.generateContent({
           model: ttsModel,
           contents: [{ parts: [{ text: cleanText }] }],
@@ -1544,18 +1561,18 @@ app.post("/api/tts", async (req: Request, res: Response, next: NextFunction): Pr
       return;
     }
 
-    throw new Error("Gemini TTS model did not return audio data.");
+    throw new Error("Voice synthesis did not return audio data.");
   } catch (err: any) {
     const errMsg = err?.message || String(err);
     const isQuota = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("quota");
     if (isQuota) {
-      console.info("Gemini TTS quota reached; client will seamlessly fallback to browser speech synthesis.");
+      console.info("Voice synthesis quota reached; client will seamlessly fallback to browser speech synthesis.");
     } else {
-      console.info("Gemini TTS unavailable; client will fallback to speech synthesis.");
+      console.info("Voice synthesis unavailable; client will fallback to speech synthesis.");
     }
     res.json({
       fallback: true,
-      error: isQuota ? "Gemini TTS quota reached." : "TTS unavailable",
+      error: isQuota ? "Voice synthesis request limit reached." : "Voice synthesis unavailable",
     });
   }
 });

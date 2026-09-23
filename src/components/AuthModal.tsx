@@ -226,15 +226,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </span>
             </div>
 
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
+            <button
+              type="button"
               onClick={onClose}
               className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-zinc-200/80 hover:bg-zinc-300/80 dark:bg-zinc-800/80 dark:hover:bg-zinc-700/80 text-zinc-700 dark:text-zinc-300 text-xs font-semibold cursor-pointer transition-colors"
             >
               <span>Continue as Guest</span>
               <X className="w-4 h-4" />
-            </motion.button>
+            </button>
           </div>
 
           {/* Centered Main Auth Content */}
@@ -283,9 +282,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {/* Primary Centerpiece Social Buttons */}
             <div className="w-full space-y-3.5">
               {/* Polished Google Button */}
-              <motion.button
-                whileHover={{ scale: 1.015 }}
-                whileTap={{ scale: 0.985 }}
+              <button
                 type="button"
                 onClick={() => handleSocialLogin("Google")}
                 disabled={isSubmitting}
@@ -310,12 +307,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                 </svg>
                 <span>Continue with Google</span>
-              </motion.button>
+              </button>
 
               {/* Polished GitHub Button (Underneath Google) */}
-              <motion.button
-                whileHover={{ scale: 1.015 }}
-                whileTap={{ scale: 0.985 }}
+              <button
                 type="button"
                 onClick={() => handleSocialLogin("GitHub")}
                 disabled={isSubmitting}
@@ -325,7 +320,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
                 </svg>
                 <span>Continue with GitHub</span>
-              </motion.button>
+              </button>
             </div>
 
             {/* Email Divider & Toggle */}
@@ -446,11 +441,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       </div>
                     </div>
 
-                    <motion.button
+                    <button
                       type="submit"
                       disabled={isSubmitting}
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.98 }}
                       className="w-full mt-2 py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-950 font-semibold text-sm transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-md disabled:opacity-50"
                     >
                       {isSubmitting ? (
@@ -461,7 +454,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}
-                    </motion.button>
+                    </button>
                   </form>
                 </motion.div>
               )}

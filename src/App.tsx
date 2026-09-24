@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "motion/react";
 import { ArrowUp, CornerDownLeft, Sparkles, RefreshCw, Plus, X, FileText, Paperclip, ChevronDown, ChevronUp, Menu, User, MessageSquare, Sliders, LogOut, Info, LogIn, Copy, ThumbsUp, ThumbsDown, Check, Pencil, Settings, Mic, Volume2, VolumeX, Trash2, Brain, MoreVertical, MoreHorizontal, Pin, Square, Share2, SquarePen, PanelLeft, Search, Bookmark, Lock, Ghost, Code2, Monitor, Tablet, Smartphone, ExternalLink, RotateCw, Globe, Layout, Play, Download, Wand2, Image as ImageIcon, Film, AlertCircle, PenLine, Video, Gamepad2, Bot, Github, FolderGit2, Loader2 } from "lucide-react";
 import { GenexLogo } from "./components/GenexLogo";
 import { AuthModal } from "./components/AuthModal";
@@ -401,6 +401,37 @@ export default function App() {
     ease: [0.2, 0, 0, 1] as const,
   };
 
+  // Mobile Edge-Swipe Sidebar Motion Values
+  const mobileSidebarX = useMotionValue(isMobile && isMenuOpen ? 0 : -285);
+  const mobileBackdropOpacity = useTransform(mobileSidebarX, [-285, 0], [0, 0.45]);
+  const sidebarDragStartRef = useRef<{
+    startX: number;
+    startY: number;
+    startTime: number;
+    isDetermined: boolean;
+    isVerticalScroll: boolean;
+    isHorizontalSwipe: boolean;
+  } | null>(null);
+
+  // Sync mobile sidebar position whenever isMenuOpen changes
+  useEffect(() => {
+    if (isMobile) {
+      animate(mobileSidebarX, isMenuOpen ? 0 : -285, {
+        type: "spring",
+        damping: 32,
+        stiffness: 350,
+        mass: 0.8,
+      });
+    }
+  }, [isMenuOpen, isMobile]);
+
+  // Keep mobileSidebarX accurate when resizing window
+  useEffect(() => {
+    if (isMobile) {
+      mobileSidebarX.set(isMenuOpen ? 0 : -285);
+    }
+  }, [isMobile]);
+
   const [isVoiceModeActive, setIsVoiceModeActive] = useState(false);
   const [isVoiceChatMinimized, setIsVoiceChatMinimized] = useState(false);
   const [voiceInputText, setVoiceInputText] = useState("");
@@ -525,7 +556,7 @@ export default function App() {
   const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (voiceDropdownRef.current && !voiceDropdownRef.current.contains(e.target as Node)) {
         setIsVoiceDropdownOpen(false);
       }
@@ -541,7 +572,11 @@ export default function App() {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   // Pre-warm SpeechSynthesis voices
@@ -2927,102 +2962,183 @@ ${code}
     >
       {/* Pure crisp background without blur or transparency overlays */}
 
-      {/* Mobile Backdrop Overlay Only */}
-      <AnimatePresence>
-        {isMobile && isMenuOpen && (
-          <motion.div
-            key="mobile-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-            onClick={() => setIsMenuOpen(false)}
-            className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-40 cursor-pointer pointer-events-auto"
-          />
-        )}
-      </AnimatePresence>
+      {/* Mobile Edge-Swipe Trigger (< 768px, within ~28px from left edge) */}
+      {isMobile && !isMenuOpen && (
+        <div
+          aria-hidden="true"
+          className="md:hidden fixed left-0 top-14 bottom-0 w-7 z-40 touch-none select-none pointer-events-auto"
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            sidebarDragStartRef.current = {
+              startX: touch.clientX,
+              startY: touch.clientY,
+              startTime: Date.now(),
+              isDetermined: false,
+              isVerticalScroll: false,
+              isHorizontalSwipe: false,
+            };
+          }}
+          onTouchMove={(e) => {
+            if (!sidebarDragStartRef.current) return;
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - sidebarDragStartRef.current.startX;
+            const deltaY = touch.clientY - sidebarDragStartRef.current.startY;
 
-      {/* Mobile Attach Menu Native Bottom Sheet (< sm breakpoint) */}
-      <AnimatePresence>
-        {isAttachMenuOpen && (
-          <motion.div
-            key="mobile-attach-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setIsAttachMenuOpen(false)}
-            className="sm:hidden fixed inset-0 bg-black/50 backdrop-blur-[2px] z-[60] cursor-pointer"
-          />
-        )}
-        {isAttachMenuOpen && (
-          <motion.div
-            ref={mobileAttachSheetRef}
-            key="mobile-attach-sheet"
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.04, bottom: 0.7 }}
-            onDragEnd={(_e, info) => {
-              if (info.offset.y > 100 || info.velocity.y > 400) {
-                setIsAttachMenuOpen(false);
+            // Disambiguate horizontal swipe vs vertical scroll
+            if (!sidebarDragStartRef.current.isDetermined) {
+              if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
+                sidebarDragStartRef.current.isVerticalScroll = true;
+                sidebarDragStartRef.current.isDetermined = true;
+                return;
               }
-            }}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{
+              if (deltaX > 8 && deltaX > Math.abs(deltaY)) {
+                sidebarDragStartRef.current.isHorizontalSwipe = true;
+                sidebarDragStartRef.current.isDetermined = true;
+              }
+            }
+
+            if (sidebarDragStartRef.current.isHorizontalSwipe && deltaX > 0) {
+              // Direct finger tracking: clamped between closed (-285) and open (0)
+              const newX = Math.min(0, -285 + deltaX);
+              mobileSidebarX.set(newX);
+            }
+          }}
+          onTouchEnd={(e) => {
+            if (!sidebarDragStartRef.current) return;
+            const touch = e.changedTouches[0];
+            const deltaX = touch.clientX - sidebarDragStartRef.current.startX;
+            const dt = (Date.now() - sidebarDragStartRef.current.startTime) || 1;
+            const velocityX = (deltaX / dt) * 1000;
+            const wasHorizontal = sidebarDragStartRef.current.isHorizontalSwipe;
+
+            sidebarDragStartRef.current = null;
+
+            if (wasHorizontal) {
+              // Snap open if dragged past ~40% width (>115px) or with sufficient forward velocity (>250px/s)
+              if (deltaX > 115 || velocityX > 250) {
+                setIsMenuOpen(true);
+                animate(mobileSidebarX, 0, {
+                  type: "spring",
+                  damping: 32,
+                  stiffness: 350,
+                  mass: 0.8,
+                });
+              } else {
+                animate(mobileSidebarX, -285, {
+                  type: "spring",
+                  damping: 32,
+                  stiffness: 350,
+                  mass: 0.8,
+                });
+              }
+            }
+          }}
+          onTouchCancel={() => {
+            sidebarDragStartRef.current = null;
+            animate(mobileSidebarX, -285, {
               type: "spring",
               damping: 32,
               stiffness: 350,
               mass: 0.8,
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="sm:hidden fixed inset-x-0 bottom-0 bg-white dark:bg-[#1a1a19] border-t border-zinc-200/80 dark:border-zinc-800/80 rounded-t-[28px] shadow-2xl z-[61] flex flex-col touch-none select-none"
-          >
-            {/* Grabber Handle Bar */}
-            <div className="w-full pt-3 pb-2 flex items-center justify-center cursor-grab active:cursor-grabbing">
-              <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-            </div>
+            });
+          }}
+        />
+      )}
 
-            {/* Sheet content / Action buttons */}
-            <div className="px-4 pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] pt-1 space-y-2.5">
-              {/* Upload File */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAttachMenuOpen(false);
-                  fileInputRef.current?.click();
-                }}
-                className="w-full flex items-center space-x-3.5 p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-zinc-800/80 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors text-left cursor-pointer border border-zinc-200/60 dark:border-zinc-700/60"
-              >
-                <div className="w-11 h-11 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center text-[#48A04C] shadow-2xs shrink-0 border border-zinc-200/70 dark:border-zinc-800">
-                  <Paperclip className="w-5 h-5 stroke-[2]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-base font-semibold text-zinc-900 dark:text-white leading-tight">Upload file</div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Photos, documents, or media</div>
-                </div>
-              </button>
+      {/* Mobile Backdrop Overlay (Smooth finger tracking, no blur composite hitch) */}
+      {isMobile && (
+        <motion.div
+          key="mobile-backdrop"
+          style={{
+            opacity: mobileBackdropOpacity,
+            pointerEvents: isMenuOpen ? "auto" : "none",
+          }}
+          onClick={() => setIsMenuOpen(false)}
+          className="md:hidden fixed inset-0 bg-black z-40 cursor-pointer"
+        />
+      )}
 
-              {/* Choose a Repo */}
-              <button
-                type="button"
-                onClick={() => {
+      {/* Mobile Attach Menu Native Bottom Sheet (< sm breakpoint) */}
+      <AnimatePresence>
+        {isAttachMenuOpen && (
+          <>
+            <motion.div
+              key="mobile-attach-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              onClick={() => setIsAttachMenuOpen(false)}
+              className="sm:hidden fixed inset-0 bg-black/50 z-[60] cursor-pointer"
+            />
+            <motion.div
+              ref={mobileAttachSheetRef}
+              key="mobile-attach-sheet"
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0.04, bottom: 0.7 }}
+              onDragEnd={(_e, info) => {
+                if (info.offset.y > 100 || info.velocity.y > 400) {
                   setIsAttachMenuOpen(false);
-                  openRepoPicker();
-                }}
-                className="w-full flex items-center space-x-3.5 p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-zinc-800/80 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors text-left cursor-pointer border border-zinc-200/60 dark:border-zinc-700/60"
-              >
-                <div className="w-11 h-11 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center text-zinc-800 dark:text-zinc-200 shadow-2xs shrink-0 border border-zinc-200/70 dark:border-zinc-800">
-                  <Github className="w-5 h-5 stroke-[2]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-base font-semibold text-zinc-900 dark:text-white leading-tight">Choose a repo</div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Connect a GitHub repository</div>
-                </div>
-              </button>
-            </div>
-          </motion.div>
+                }
+              }}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{
+                type: "spring",
+                damping: 32,
+                stiffness: 350,
+                mass: 0.8,
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="sm:hidden fixed inset-x-0 bottom-0 bg-white dark:bg-[#1a1a19] border-t border-zinc-200/80 dark:border-zinc-800/80 rounded-t-[28px] shadow-2xl z-[61] flex flex-col touch-none select-none"
+            >
+              {/* Grabber Handle Bar */}
+              <div className="w-full pt-3 pb-2 flex items-center justify-center cursor-grab active:cursor-grabbing">
+                <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+              </div>
+
+              {/* Sheet content / Action buttons */}
+              <div className="px-4 pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] pt-1 space-y-2.5">
+                {/* Upload File */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAttachMenuOpen(false);
+                    fileInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center space-x-3.5 p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-zinc-800/80 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors text-left cursor-pointer border border-zinc-200/60 dark:border-zinc-700/60"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center text-[#48A04C] shadow-2xs shrink-0 border border-zinc-200/70 dark:border-zinc-800">
+                    <Paperclip className="w-5 h-5 stroke-[2]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-base font-semibold text-zinc-900 dark:text-white leading-tight">Upload file</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Photos, documents, or media</div>
+                  </div>
+                </button>
+
+                {/* Choose a Repo */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAttachMenuOpen(false);
+                    openRepoPicker();
+                  }}
+                  className="w-full flex items-center space-x-3.5 p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-zinc-800/80 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors text-left cursor-pointer border border-zinc-200/60 dark:border-zinc-700/60"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center text-zinc-800 dark:text-zinc-200 shadow-2xs shrink-0 border border-zinc-200/70 dark:border-zinc-800">
+                    <Github className="w-5 h-5 stroke-[2]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-base font-semibold text-zinc-900 dark:text-white leading-tight">Choose a repo</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Connect a GitHub repository</div>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -3052,7 +3168,7 @@ ${code}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
             onClick={() => setIsRepoPickerOpen(false)}
           >
             <motion.div
@@ -3160,7 +3276,7 @@ ${code}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsSettingsOpen(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           >
             <motion.div
               key="settings-content"
@@ -3297,16 +3413,46 @@ ${code}
       {/* Unified Push Sidebar (Desktop + Mobile) */}
       <motion.aside
         initial={false}
+        drag={isMobile ? "x" : false}
+        dragConstraints={isMobile ? { left: -285, right: 0 } : undefined}
+        dragElastic={isMobile ? { left: 0.05, right: 0 } : undefined}
+        onDragEnd={(_e, info) => {
+          if (!isMobile) return;
+          // Dragged left to close: dismiss if dragged left > 90px or fast flick left
+          if (info.offset.x < -90 || info.velocity.x < -250) {
+            setIsMenuOpen(false);
+            animate(mobileSidebarX, -285, {
+              type: "spring",
+              damping: 32,
+              stiffness: 350,
+              mass: 0.8,
+            });
+          } else {
+            animate(mobileSidebarX, 0, {
+              type: "spring",
+              damping: 32,
+              stiffness: 350,
+              mass: 0.8,
+            });
+          }
+        }}
+        style={
+          isMobile
+            ? { x: mobileSidebarX }
+            : undefined
+        }
         animate={
           isMobile
-            ? { x: isMenuOpen ? 0 : -285, width: 280 }
+            ? undefined
             : { x: 0, width: isMenuOpen ? 280 : 64 }
         }
         transition={sidebarTransition}
-        className={`fixed left-0 top-0 bottom-0 z-40 select-none overflow-hidden will-change-transform ${
-          isMenuOpen
-            ? "bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-2xl md:shadow-none"
-            : "bg-transparent border-none"
+        className={`fixed left-0 top-0 bottom-0 select-none overflow-hidden will-change-transform ${
+          isMobile
+            ? "z-50 w-[280px] bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-2xl"
+            : (isMenuOpen
+                ? "z-40 bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-none"
+                : "z-40 bg-transparent border-none")
         }`}
       >
         {/* 1. Slim Vertical Rail (Collapsed state on desktop) */}
@@ -3379,13 +3525,17 @@ ${code}
         {/* 2. Expanded Panel Content (When sidebar is open) */}
         <motion.div
           initial={false}
-          animate={{
-            opacity: isMenuOpen ? 1 : 0,
-            pointerEvents: isMenuOpen ? "auto" : "none",
-          }}
+          animate={
+            isMobile
+              ? { opacity: 1, pointerEvents: "auto" }
+              : {
+                  opacity: isMenuOpen ? 1 : 0,
+                  pointerEvents: isMenuOpen ? "auto" : "none",
+                }
+          }
           transition={{
             duration: isMenuOpen ? 0.2 : 0.14,
-            delay: isMenuOpen ? 0.04 : 0,
+            delay: !isMobile && isMenuOpen ? 0.04 : 0,
             ease: [0.2, 0, 0, 1],
           }}
           className="flex flex-col h-full w-[280px] shrink-0 text-zinc-900 dark:text-zinc-100 absolute inset-y-0 left-0 z-20 bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80"
@@ -4433,13 +4583,13 @@ ${code}
 
                 {/* Attach Popup Menu (Desktop & Tablet only) */}
                 <AnimatePresence>
-                  {isAttachMenuOpen && (
+                  {isAttachMenuOpen && !isMobile && (
                     <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      initial={{ opacity: 0, y: 6, scale: 0.97 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
-                      className="hidden sm:block absolute left-0 bottom-full mb-2.5 w-52 sm:w-56 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
+                      exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                      transition={{ duration: 0.12, ease: "easeOut" }}
+                      className="hidden sm:block absolute left-0 bottom-full mb-2.5 w-52 sm:w-56 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/90 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
                     >
                       {/* Option: Upload File */}
                       <button
@@ -4571,11 +4721,11 @@ ${code}
                 <AnimatePresence>
                   {isModeMenuOpen && (
                     <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.12 }}
-                      className="absolute right-0 bottom-full mb-2.5 w-40 sm:w-44 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
+                      initial={{ opacity: 0, scale: 0.96, y: 4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96, y: 4 }}
+                      transition={{ duration: 0.12, ease: "easeOut" }}
+                      className="absolute right-0 bottom-full mb-2.5 w-40 sm:w-44 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/90 dark:border-zinc-800 p-1.5 z-50 overflow-hidden text-zinc-900 dark:text-white"
                     >
                       <div className="space-y-1">
                         {[

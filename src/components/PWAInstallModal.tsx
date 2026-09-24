@@ -20,7 +20,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 select-none">
       <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-2xl text-zinc-900 dark:text-zinc-100 relative">
         <button
           onClick={onClose}

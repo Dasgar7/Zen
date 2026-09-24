@@ -87,20 +87,19 @@ button,
 .zen-tap-icon {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out, filter 120ms ease-out, opacity 120ms ease-out;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out, opacity 120ms ease-out;
 }
 
-/* Native press: Light mode surfaces shift slightly darker */
+/* Native press: Light mode surfaces shift slightly darker via opacity */
 button:active:not(:disabled),
 [role="button"]:active:not([aria-disabled="true"]),
 .zen-tap:active,
 .zen-tap-soft:active,
 .zen-tap-icon:active {
-  filter: brightness(0.92);
-  transform: none !important;
+  opacity: 0.85;
 }
 
-/* Native press: Dark mode surfaces shift slightly lighter */
+/* Native press: Dark mode surfaces shift slightly via opacity */
 .dark button:active:not(:disabled),
 html.dark button:active:not(:disabled),
 .dark [role="button"]:active:not([aria-disabled="true"]),
@@ -111,8 +110,7 @@ html.dark .zen-tap:active,
 html.dark .zen-tap-soft:active,
 .dark .zen-tap-icon:active,
 html.dark .zen-tap-icon:active {
-  filter: brightness(1.15);
-  transform: none !important;
+  opacity: 0.85;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -121,8 +119,7 @@ html.dark .zen-tap-icon:active {
   :root:not(.light) .zen-tap:active,
   :root:not(.light) .zen-tap-soft:active,
   :root:not(.light) .zen-tap-icon:active {
-    filter: brightness(1.15);
-    transform: none !important;
+    opacity: 0.85;
   }
 }
 

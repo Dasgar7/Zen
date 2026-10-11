@@ -10,6 +10,7 @@ import githubAuthHandler from "./api/auth/github";
 import githubCallbackHandler from "./api/auth/github/callback";
 import githubReposHandler from "./api/github/repos";
 import githubContentsHandler from "./api/github/contents";
+import chatHandler from "./api/chat";
 
 dotenv.config();
 
@@ -1340,111 +1341,9 @@ User Message:
     void githubContentsHandler(req, res);
   });
 
-  // API Routes
-  app.post("/api/chat", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { message, parts, history, modelId: rawModelId, userMemoryContext, isWebDevMode, isVoiceCall, topLevelMode, connectedRepo } = req.body;
-      const ai = getGemini();
-
-      // Smart automatic model routing based on topLevelMode (Agent vs Chat)
-      let modelId = rawModelId;
-      if (topLevelMode === "agent") {
-        if (!modelId || modelId === "mini") {
-          modelId = "thinking";
-        }
-      }
-
-      // Ensure history format is compatible or default to empty array
-      const chatHistory = Array.isArray(history) ? history : [];
-      const currentParts = Array.isArray(parts) ? parts : [{ text: message || "" }];
-
-      let systemInstruction = "You are GNX (General Network Expert) ROUT, an elite AI engine inside Zen. Provide direct, sophisticated, and perfectly clear answers with absolute clarity. Always begin your response with your internal step-by-step thought process enclosed in <think>...</think> tags before your main answer.";
-
-      if (modelId === "mini") {
-        systemInstruction = "You are GNX Rout Mini — an ultra-fast, lightweight AI model optimized for swift answers, low credit consumption, and everyday tasks. Provide rapid, accurate, clear, and direct responses with clean formatting. Begin your response with a brief reasoning breakdown enclosed in <think>...</think> tags before your main answer.";
-      } else if (modelId === "thinking") {
-        systemInstruction = "You are GNX Rout Thinking — a deep reasoning AI model specialized for mathematics, coding, logic, text composition, and hard multi-step problems. You MUST start your response with thorough, step-by-step reasoning enclosed in <think>...</think> tags, breaking down the problem thoroughly before providing your final answer.";
-      } else if (modelId === "pro") {
-        systemInstruction = "You are GNX ROUT Pro — the high-capacity, multi-modal master ensemble AI model with maximum capabilities. You excel at complex reasoning, vision/multimodal analysis, creative design, code architecture, and heavy analytical tasks. Begin your response with deep analytical reasoning enclosed in <think>...</think> tags before your main answer.";
-      }
-
-      if (topLevelMode === "agent") {
-        systemInstruction += `\n\n### AUTONOMOUS AGENT MODE DIRECTIVE:
-You are operating in autonomous AGENT MODE inside Zen. In Agent mode, you act as an autonomous, multi-step problem solver capable of deep planning and end-to-end task execution.
-1. Formulate a comprehensive, step-by-step execution plan enclosed in <think>...</think> tags before acting, detailing objectives, components, architecture, and verification.
-2. Execute tasks end-to-end: write complete, working, high-quality production code without shortcuts, omissions, stubs, or placeholders.
-3. If designing or building an application, game, website, or script, provide the complete, runnable solution with all components, styling, logic, error handling, and instructions.
-4. Reason systematically through edge cases and deliver an end-to-end outcome.`;
-      } else {
-        systemInstruction += `\n\n### CONVERSATIONAL CHAT MODE DIRECTIVE:
-You are operating in direct conversational CHAT MODE inside Zen. Provide direct, natural, articulate, concise, and helpful answers, creative writing, explanations, and quick coding help with conversational clarity.`;
-      }
-
-      if (isVoiceCall) {
-        systemInstruction += "\n\n### LIVE VOICE CALL DIRECTIVE:\nYou are in an active live voice conversation with the user. Do NOT include <think> tags. Keep your answer natural, warm, spoken-friendly, concise (1 to 3 short sentences maximum), and completely free of markdown, bullet points, or code blocks. Speak directly and fluidly as if in a natural phone conversation.";
-      }
-
-      if (isWebDevMode) {
-        systemInstruction += `\n\n### WEB DEV MODE DIRECTIVE:
-You are operating in WEB DEV MODE inside Zen. The user is asking you to build or update a web application/website.
-You MUST provide a complete, modern, production-ready single-file HTML document enclosed in a single \`\`\`html ... \`\`\` block.
-Guidelines for Web Dev output:
-1. Wrap the entire website code inside \`\`\`html ... \`\`\`.
-2. Include standard <!DOCTYPE html>, <html>, <head> with Tailwind CSS CDN (<script src="https://cdn.tailwindcss.com"></script>) and FontAwesome / Google Fonts for modern styling.
-3. Include clean, modern design, responsive layouts, working JavaScript interactivity, dark/light details, buttons, and fully styled visual UI components.
-4. Ensure code is complete, self-contained, and ready to render in a live preview iframe.
-5. Provide a short explanation of what you built after the code block.
-6. ZENCRAFT / VOXEL PROCEDURAL WORLD GENERATION DIRECTIVE:
-   When creating or updating voxel/3D block world applications (like ZenCraft):
-   - Include procedural world generation with pre-made structures scattered across the terrain:
-     * Small houses with stone foundations, oak wood plank walls, a door gap, and an angled roof made of slabs/stairs or contrasting blocks.
-     * Tall watchtowers with stone bases, wooden platforms, ladder/stair steps, and overhanging roofs.
-   - Place structures intelligently on flat-ish ground (avoid spawning half-buried in steep hills or floating over water), spaced far enough apart so they do not overlap each other or generated trees.
-   - Use varied block materials for visual depth (cobblestone/stone foundation, oak wood plank walls, dark wood or terracotta roof blocks) rather than monochrome single-block structures.
-   - Ensure generation is highly performant (e.g., efficient bounding box checks and array lookups during terrain setup) so initial world load remains fast and smooth.
-   - Preserve all existing features: 1st-person controls, mining/placing blocks, inventory, hotbar selection, day/night cycles, and save/load world states.`;
-      }
-
-      if (connectedRepo && connectedRepo.fullName) {
-        systemInstruction += `\n\n### CONNECTED GITHUB REPOSITORY:
-The user has connected their GitHub repository: "${connectedRepo.fullName}" (branch: ${connectedRepo.defaultBranch || "main"}).
-You are actively connected to this repository. When the user asks about the repo, its files, architecture, or asks you to write code or update files for it, reference this repository directly and produce production-ready code or instructions.`;
-      }
-
-      if (userMemoryContext && typeof userMemoryContext === "string" && userMemoryContext.trim()) {
-        systemInstruction += `\n\n### CRITICAL DIRECTIVE - PERSISTENT LONG-TERM MEMORY & CONVERSATION RECALL:
-You have ACTIVE PERSISTENT MEMORY across all past user chat sessions, tasks, code, and conversations in Zen.
-NEVER say "I operate in an isolated state", "I do not retain memory across separate conversations", or "I cannot remember previous chats".
-You HAVE full access to the user's past chats and previous sessions listed in the memory block below.
-When the user asks "do you remember what we built in last chat?", "what did we discuss?", or asks about previous tasks, review the PAST CONVERSATIONS HISTORY below, identify what was built or discussed, and answer with exact details and helpful clarity!
-
-${userMemoryContext.trim()}`;
-      }
-
-      // Call real-time SSE streaming helper with retry and fallback
-      await streamChatWithRetryAndFallback(
-        req,
-        res,
-        ai,
-        [
-          ...chatHistory,
-          { role: "user", parts: currentParts }
-        ],
-        systemInstruction,
-        modelId
-      );
-    } catch (error: any) {
-      const errMsg = error?.message || String(error);
-      const isQuota = errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("limit reached");
-      if (!res.headersSent) {
-        if (isQuota) {
-          res.status(429).json({ error: "GNX Rout request limit reached. Please wait a few seconds and try again." });
-        } else {
-          console.error("Error in /api/chat:", error);
-          res.status(500).json({ error: errMsg || "An unexpected error occurred with GNX Rout." });
-        }
-      }
-    }
+  // API Routes - Forward to GNX Rout first-party chat handler
+  app.post("/api/chat", (req: Request, res: Response) => {
+    void chatHandler(req, res);
   });
 
   // Helper to wrap raw 16-bit PCM audio into a standard playable WAV file buffer

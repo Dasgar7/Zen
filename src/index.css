@@ -40,36 +40,36 @@ body {
 
 html.dark,
 .dark {
-  --color-zinc-950: #141413;
-  --color-zinc-900: #1b1b19;
-  --color-zinc-850: #212120;
-  --color-zinc-800: #2a2926;
-  --color-zinc-750: #33322f;
-  --color-zinc-700: #3b3a35;
-  --color-zinc-650: #4a4842;
-  --color-zinc-600: #5c5952;
+  --color-zinc-950: #000000;
+  --color-zinc-900: #121212;
+  --color-zinc-850: #18181b;
+  --color-zinc-800: #1e1f20;
+  --color-zinc-750: #282a2c;
+  --color-zinc-700: #303134;
+  --color-zinc-650: #3c4043;
+  --color-zinc-600: #5f6368;
 }
 
 html.dark body,
 .dark body {
-  background-color: #141413;
-  color: #f3efe8;
+  background-color: #000000;
+  color: #f4f4f5;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-zinc-950: #141413;
-    --color-zinc-900: #1b1b19;
-    --color-zinc-850: #212120;
-    --color-zinc-800: #2a2926;
-    --color-zinc-750: #33322f;
-    --color-zinc-700: #3b3a35;
-    --color-zinc-650: #4a4842;
-    --color-zinc-600: #5c5952;
+    --color-zinc-950: #000000;
+    --color-zinc-900: #121212;
+    --color-zinc-850: #18181b;
+    --color-zinc-800: #1e1f20;
+    --color-zinc-750: #282a2c;
+    --color-zinc-700: #303134;
+    --color-zinc-650: #3c4043;
+    --color-zinc-600: #5f6368;
   }
   body {
-    background-color: #141413;
-    color: #f3efe8;
+    background-color: #000000;
+    color: #f4f4f5;
   }
 }
 
@@ -194,7 +194,7 @@ button:not(:disabled),
 }
 
 @media (hover: none) and (pointer: coarse) {
-  /* Clean Gemini / native press effect on touch devices - zero scale/bounce */
+  /* Native smooth press effect on touch devices - zero scale/bounce */
   button:not(:disabled),
   [role="button"],
   a.cursor-pointer,

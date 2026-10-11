@@ -5,7 +5,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "motion/react";
-import { ArrowUp, CornerDownLeft, Sparkles, RefreshCw, Plus, X, FileText, Paperclip, ChevronDown, ChevronUp, Menu, User, MessageSquare, Sliders, LogOut, Info, LogIn, Copy, ThumbsUp, ThumbsDown, Check, Pencil, Settings, Mic, Volume2, VolumeX, Trash2, Brain, MoreVertical, MoreHorizontal, Pin, Square, Share2, SquarePen, PanelLeft, Search, Bookmark, Lock, Ghost, Code2, Monitor, Tablet, Smartphone, ExternalLink, RotateCw, Globe, Layout, Play, Download, Wand2, Image as ImageIcon, Film, AlertCircle, PenLine, Video, Gamepad2, Bot, Github, FolderGit2, Loader2 } from "lucide-react";
+import { ArrowUp, CornerDownLeft, Sparkles, RefreshCw, Plus, X, FileText, Paperclip, ChevronDown, ChevronUp, Menu, User, MessageSquare, Sliders, LogOut, Info, LogIn, Copy, ThumbsUp, ThumbsDown, Check, Pencil, Settings, Mic, Volume2, VolumeX, Trash2, Brain, MoreVertical, MoreHorizontal, Pin, Square, Share2, SquarePen, PanelLeft, Search, Bookmark, Lock, Ghost, Code2, Monitor, Tablet, Smartphone, ExternalLink, RotateCw, Globe, Layout, Play, Download, Wand2, Image as ImageIcon, Film, AlertCircle, PenLine, Video, Gamepad2, Bot, Github, FolderGit2, Loader2, LayoutGrid } from "lucide-react";
+import userLogoImg from "./assets/images/user_logo.png";
 import { GenexLogo } from "./components/GenexLogo";
 import { AuthModal } from "./components/AuthModal";
 import { PricingModal } from "./components/PricingModal";
@@ -19,6 +20,23 @@ import { auth, signOut, onAuthStateChanged } from "./lib/firebase";
 const PlusSparkleIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M12 2C12 7.2 16.8 12 22 12C16.8 12 12 16.8 12 22C12 16.8 7.2 12 2 12C7.2 12 12 7.2 12 2Z" />
+  </svg>
+);
+
+const ClaudeHamburgerIcon = ({ className = "w-6 h-6 shrink-0" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <line x1="2.5" y1="6" x2="21.5" y2="6" />
+    <line x1="2.5" y1="12" x2="21.5" y2="12" />
+    <line x1="2.5" y1="18" x2="21.5" y2="18" />
   </svg>
 );
 
@@ -386,6 +404,7 @@ export default function App() {
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [topLevelMode, setTopLevelMode] = useState<"chat" | "agent">("chat");
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState("");
+  const [isSidebarSearchOpen, setIsSidebarSearchOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
 
   useEffect(() => {
@@ -1408,7 +1427,7 @@ export default function App() {
     return localStorage.getItem("zen_is_logged_in") === "true";
   });
   const [userName, setUserName] = useState<string>(() => {
-    return localStorage.getItem("zen_user_name") || "";
+    return localStorage.getItem("zen_user_name") || "Dasgar";
   });
   const [userEmail, setUserEmail] = useState<string>(() => {
     return localStorage.getItem("zen_user_email") || "";
@@ -1663,7 +1682,7 @@ ${code}
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setSavedChats(parsed);
           return;
         }
@@ -1671,7 +1690,16 @@ ${code}
         console.warn("Failed to parse saved chats from localStorage:", e);
       }
     }
-    setSavedChats([]);
+    const defaultZenChats: ChatSession[] = [
+      { id: "chat_dasgar_io", title: "Dasgar.io", pinned: true, createdAt: Date.now() - 1000 * 60 * 10, updatedAt: Date.now() - 1000 * 60 * 10, messages: [] },
+      { id: "chat_7d_flt", title: "@7d_flt", pinned: true, createdAt: Date.now() - 1000 * 60 * 60, updatedAt: Date.now() - 1000 * 60 * 60, messages: [] },
+      { id: "chat_geo_dash", title: "Geometry Dash Clone in Single HT...", pinned: true, createdAt: Date.now() - 1000 * 60 * 120, updatedAt: Date.now() - 1000 * 60 * 120, messages: [] },
+      { id: "chat_agar_io", title: "Prevent Agar.io App Store Redirects", pinned: true, createdAt: Date.now() - 1000 * 60 * 180, updatedAt: Date.now() - 1000 * 60 * 180, messages: [] },
+      { id: "chat_slote_app", title: "Building Slote AI Assistant App", pinned: true, createdAt: Date.now() - 1000 * 60 * 240, updatedAt: Date.now() - 1000 * 60 * 240, messages: [] },
+      { id: "chat_zen_bot", title: "AI Assistant with Zen Engine", pinned: true, createdAt: Date.now() - 1000 * 60 * 300, updatedAt: Date.now() - 1000 * 60 * 300, messages: [] },
+      { id: "chat_greeting", title: "Casual Greeting and Project Kickoff", pinned: false, createdAt: Date.now() - 1000 * 60 * 360, updatedAt: Date.now() - 1000 * 60 * 360, messages: [] },
+    ];
+    setSavedChats(defaultZenChats);
   }, [isLoggedIn, userEmail]);
 
 
@@ -1919,20 +1947,17 @@ ${code}
     return (
       <div
         key={chat.id}
-        onClick={() => handleSelectChat(chat)}
-        className={`w-full group relative p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-between text-xs border ${
+        onClick={() => {
+          handleSelectChat(chat);
+          if (isMobile) setIsMenuOpen(false);
+        }}
+        className={`w-full group relative px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-between text-xs ${
           isActive
-            ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700 font-semibold shadow-2xs"
-            : "bg-transparent hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300 border-transparent"
+            ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-950 dark:text-white font-medium shadow-2xs"
+            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60 font-normal"
         }`}
       >
-        <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-1">
-          {chat.pinned ? (
-            <Pin className="w-3.5 h-3.5 shrink-0 text-amber-500 fill-amber-500" title="Pinned chat" />
-          ) : (
-            <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-400"}`} />
-          )}
-
+        <div className="flex items-center min-w-0 flex-1 pr-2">
           {isEditing ? (
             <form
               onSubmit={(e) => saveRenameChat(chat.id, e)}
@@ -1944,43 +1969,59 @@ ${code}
                 value={editingTitle}
                 onChange={(e) => setEditingTitle(e.target.value)}
                 autoFocus
-                className="w-full bg-white dark:bg-zinc-900 px-2 py-0.5 text-xs text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700 rounded outline-none font-normal"
+                className="w-full bg-white dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700 rounded-md outline-none font-normal"
               />
               <button
                 type="submit"
-                className="p-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer"
+                className="p-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 cursor-pointer"
                 title="Save title"
               >
                 <Check className="w-3.5 h-3.5" />
               </button>
             </form>
           ) : (
-            <span className={`truncate flex-1 font-medium ${isActive ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-700 dark:text-zinc-300"}`}>{chat.title}</span>
+            <span className={`truncate flex-1 ${isActive ? "text-zinc-950 dark:text-white font-medium" : ""}`}>
+              {chat.title}
+            </span>
           )}
         </div>
 
         {!isEditing && (
-          <div className="relative shrink-0 flex items-center">
-            {/* 3-dot button (...) - ChatGPT Style */}
+          <div className="relative shrink-0 flex items-center space-x-1">
+            {/* Pin Icon button */}
             <button
+              type="button"
+              onClick={(e) => handleTogglePinChat(chat.id, e)}
+              className={`p-1 rounded-md transition-opacity cursor-pointer ${
+                chat.pinned
+                  ? "opacity-100 text-amber-500 dark:text-amber-400"
+                  : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              }`}
+              title={chat.pinned ? "Unpin chat" : "Pin chat"}
+            >
+              <Pin className={`w-3.5 h-3.5 ${chat.pinned ? "fill-amber-500 dark:fill-amber-400" : ""}`} />
+            </button>
+
+            {/* Options menu */}
+            <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setActiveMenuChatId(isChatItemMenuOpen ? null : chat.id);
               }}
-              className={`p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/80 dark:hover:bg-zinc-700 cursor-pointer transition-all ${
+              className={`p-1 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer transition-all ${
                 isChatItemMenuOpen
-                  ? "opacity-100 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  : "opacity-80 md:opacity-0 md:group-hover:opacity-100"
+                  ? "opacity-100 bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                  : "opacity-0 group-hover:opacity-100"
               }`}
               title="Chat Options"
             >
-              <MoreHorizontal className="w-4 h-4 stroke-[2]" />
+              <MoreHorizontal className="w-3.5 h-3.5 stroke-[2]" />
             </button>
 
             <AnimatePresence>
               {isChatItemMenuOpen && (
                 <>
-                  {/* Backdrop to close menu */}
                   <div
                     className="fixed inset-0 z-40 cursor-default"
                     onClick={(e) => {
@@ -1988,43 +2029,38 @@ ${code}
                       setActiveMenuChatId(null);
                     }}
                   />
-
-                  {/* Dropdown Menu - ChatGPT Style */}
                   <motion.div
                     initial={{ opacity: 0, scale: 0.96, y: -4 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96, y: -4 }}
                     transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 top-8 z-50 w-44 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-1.5 text-xs text-zinc-800 dark:text-zinc-200 font-normal"
+                    className="absolute right-0 top-7 z-50 w-40 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-1 text-xs text-zinc-800 dark:text-zinc-200 font-normal"
                   >
                     <button
                       onClick={(e) => {
                         setActiveMenuChatId(null);
                         startRenamingChat(chat, e);
                       }}
-                      className="w-full px-3 py-2 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center space-x-2.5 font-medium cursor-pointer text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                      className="w-full px-2.5 py-1.5 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center space-x-2 font-medium cursor-pointer text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white transition-colors"
                     >
-                      <Pencil className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                      <Pencil className="w-3.5 h-3.5 text-zinc-400" />
                       <span>Rename</span>
                     </button>
-
                     <button
                       onClick={(e) => handleTogglePinChat(chat.id, e)}
-                      className="w-full px-3 py-2 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center space-x-2.5 font-medium cursor-pointer text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                      className="w-full px-2.5 py-1.5 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center space-x-2 font-medium cursor-pointer text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white transition-colors"
                     >
-                      <Pin className={`w-3.5 h-3.5 ${chat.pinned ? "text-amber-500 fill-amber-500" : "text-zinc-500 dark:text-zinc-400"}`} />
-                      <span>{chat.pinned ? "Unpin" : "Pin to Top"}</span>
+                      <Pin className={`w-3.5 h-3.5 ${chat.pinned ? "text-amber-500 fill-amber-500" : "text-zinc-400"}`} />
+                      <span>{chat.pinned ? "Unpin" : "Pin"}</span>
                     </button>
-
-                    <div className="my-1 border-t border-zinc-100 dark:border-zinc-700" />
-
+                    <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
                     <button
                       onClick={(e) => {
                         setActiveMenuChatId(null);
                         handleDeleteChat(chat.id, e);
                       }}
-                      className="w-full px-3 py-2 text-left rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center space-x-2.5 font-medium cursor-pointer transition-colors"
+                      className="w-full px-2.5 py-1.5 text-left rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center space-x-2 font-medium cursor-pointer transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Delete</span>
@@ -2958,7 +2994,7 @@ ${code}
         paddingLeft: isMobile ? 0 : (isMenuOpen ? 280 : 64),
       }}
       transition={sidebarTransition}
-      className="h-screen h-[100dvh] w-full bg-white dark:bg-[#141413] text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden font-sans relative selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-zinc-100 pt-[env(safe-area-inset-top,0px)]"
+      className="h-screen h-[100dvh] w-full bg-white dark:bg-black text-zinc-900 dark:text-white flex flex-col overflow-hidden font-sans relative selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-white pt-[env(safe-area-inset-top,0px)]"
     >
       {/* Pure crisp background without blur or transparency overlays */}
 
@@ -3449,9 +3485,9 @@ ${code}
         transition={sidebarTransition}
         className={`fixed left-0 top-0 bottom-0 select-none overflow-hidden will-change-transform ${
           isMobile
-            ? "z-50 w-[280px] bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-2xl"
+            ? "z-50 w-[290px] sm:w-[320px] bg-white dark:bg-black border-r border-zinc-200/80 dark:border-zinc-900 shadow-2xl"
             : (isMenuOpen
-                ? "z-40 bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-none"
+                ? "z-40 bg-white dark:bg-black border-r border-zinc-200/80 dark:border-zinc-900 shadow-none"
                 : "z-40 bg-transparent border-none")
         }`}
       >
@@ -3468,61 +3504,84 @@ ${code}
           }}
           className="hidden md:flex flex-col items-center justify-between h-full py-3.5 w-16 absolute inset-y-0 left-0 z-10 bg-transparent border-none"
         >
-          <div className="flex flex-col items-center space-y-3.5 w-full bg-transparent">
+          <div className="flex flex-col items-center space-y-2.5 w-full bg-transparent">
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
-              className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
-              title="Toggle sidebar"
-              aria-label="Toggle sidebar"
+              className="w-10 h-10 rounded-xl bg-transparent flex items-center justify-center text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer select-none"
+              title="Open sidebar"
+              aria-label="Open sidebar"
             >
-              <PanelLeft className="w-5 h-5 stroke-[1.8]" />
+              <ClaudeHamburgerIcon />
             </button>
 
-            {/* In an active conversation, the collapsed left rail shows ONLY the toggle button.
-                On the home/empty screen, show the full rail (search, bookmark, logo). */}
-            {!hasChatStarted && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(true);
-                    setTimeout(() => sidebarSearchInputRef.current?.focus(), 100);
-                  }}
-                  className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
-                  title="Search conversations"
-                  aria-label="Search conversations"
-                >
-                  <Search className="w-5 h-5 stroke-[1.8]" />
-                </button>
+            <button
+              type="button"
+              onClick={createNewChat}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+              title="New chat"
+              aria-label="New chat"
+            >
+              <SquarePen className="w-5 h-5 stroke-[1.9]" />
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsMenuOpen(true)}
-                  className="p-2.5 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer flex items-center justify-center"
-                  title="Saved chats"
-                  aria-label="Saved chats"
-                >
-                  <Bookmark className="w-5 h-5 stroke-[1.8]" />
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMenuOpen(true);
+                setIsSidebarSearchOpen(true);
+                setTimeout(() => sidebarSearchInputRef.current?.focus(), 100);
+              }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+              title="Search conversations"
+              aria-label="Search conversations"
+            >
+              <Search className="w-5 h-5 stroke-[1.9]" />
+            </button>
+
+            <div className="w-6 h-px bg-zinc-200 dark:bg-zinc-800/80 my-1" />
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsWebDevMode(true);
+              }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-700 dark:text-zinc-300 hover:text-emerald-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+              title="Canvas & Dev Sandbox"
+              aria-label="Canvas & Dev Sandbox"
+            >
+              <Code2 className="w-5 h-5 stroke-[1.9]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsCreateMediaMode(true);
+              }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-700 dark:text-zinc-300 hover:text-violet-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+              title="Studio & Media"
+              aria-label="Studio & Media"
+            >
+              <Wand2 className="w-5 h-5 stroke-[1.9]" />
+            </button>
           </div>
 
-          {!hasChatStarted && (
-            <div className="flex flex-col items-center space-y-3 w-full bg-transparent">
-              <div
-                className="p-1 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
-                onClick={createNewChat}
-                title="Zen AI"
-              >
-                <GenexLogo className="w-5.5 h-5.5" />
-              </div>
-            </div>
-          )}
+          <div className="flex flex-col items-center space-y-3 w-full bg-transparent">
+            <button
+              type="button"
+              onClick={() => {
+                if (!isLoggedIn) setIsAuthOpen(true);
+                else setIsSettingsOpen(true);
+              }}
+              className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-zinc-300 dark:ring-zinc-800 hover:opacity-85 transition-opacity cursor-pointer"
+              title={userName || "Dasgar"}
+            >
+              <img src={userLogoImg} alt={userName || "Dasgar"} className="w-full h-full object-cover" />
+            </button>
+          </div>
         </motion.div>
 
-        {/* 2. Expanded Panel Content (When sidebar is open) */}
+        {/* 2. Expanded Panel Content (When sidebar is open) — Distinct Zen Workspace */}
         <motion.div
           initial={false}
           animate={
@@ -3538,206 +3597,270 @@ ${code}
             delay: !isMobile && isMenuOpen ? 0.04 : 0,
             ease: [0.2, 0, 0, 1],
           }}
-          className="flex flex-col h-full w-[280px] shrink-0 text-zinc-900 dark:text-zinc-100 absolute inset-y-0 left-0 z-20 bg-white dark:bg-[#141413] border-r border-zinc-200/80 dark:border-zinc-800/80"
+          className="flex flex-col h-full w-[290px] sm:w-[320px] shrink-0 text-zinc-900 dark:text-zinc-100 absolute inset-y-0 left-0 z-20 bg-white dark:bg-black border-r border-zinc-200/80 dark:border-zinc-900 select-none"
         >
-            {/* 1. Top Header: Logo on Left, Toggle + Search on Right */}
-            <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/60 shrink-0">
-              <div className="flex items-center space-x-2 cursor-pointer" onClick={createNewChat} title="Zen AI">
-                <GenexLogo className="w-5.5 h-5.5" />
-                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Zen</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <button
-                  type="button"
-                  onClick={() => sidebarSearchInputRef.current?.focus()}
-                  className="p-2 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                  title="Search conversations"
-                >
-                  <Search className="w-5 h-5 stroke-[1.8]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="p-2 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                  title="Collapse sidebar"
-                >
-                  <PanelLeft className="w-5 h-5 stroke-[1.8]" />
-                </button>
+          {/* Zen Header: Brand & Status on Left, Close on Right */}
+          <div className="px-4 py-3.5 flex items-center justify-between shrink-0 border-b border-zinc-100 dark:border-zinc-900">
+            <div className="flex items-center space-x-2.5">
+              <GenexLogo className="w-6 h-6" />
+              <div className="flex items-center space-x-2">
+                <span className="text-base font-semibold tracking-tight text-zinc-900 dark:text-white">
+                  Zen
+                </span>
+                <span className="text-[10px] font-medium tracking-wide uppercase px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400">
+                  {selectedModelId === "pro" ? "Pro" : selectedModelId === "mini" ? "Mini" : "Thinking"}
+                </span>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(false)}
+              className="w-8 h-8 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer"
+              title="Close sidebar"
+              aria-label="Close sidebar"
+            >
+              <X className="w-4 h-4 stroke-[2]" />
+            </button>
+          </div>
 
-            {/* 2. New Chat Button */}
-            <div className="p-3 pb-1.5 shrink-0">
+          {/* New Chat & Search Controls */}
+          <div className="p-3 shrink-0 space-y-2">
+            <button
+              onClick={() => {
+                createNewChat();
+                if (isMobile) setIsMenuOpen(false);
+              }}
+              className="w-full py-2.5 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-950 font-medium text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-between shadow-2xs group"
+            >
+              <div className="flex items-center space-x-2.5">
+                <Plus className="w-4 h-4 stroke-[2.2] transition-transform group-hover:rotate-90 duration-200" />
+                <span>New chat</span>
+              </div>
+              <span className="text-[10px] font-mono opacity-60 px-1.5 py-0.5 rounded bg-white/15 dark:bg-black/10">
+                ⌘N
+              </span>
+            </button>
+
+            {/* Quick Search */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 pointer-events-none" />
+              <input
+                ref={sidebarSearchInputRef}
+                type="text"
+                placeholder="Search conversations..."
+                value={sidebarSearchQuery}
+                onChange={(e) => setSidebarSearchQuery(e.target.value)}
+                className="w-full pl-8.5 pr-7 py-1.5 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition-colors"
+              />
+              {sidebarSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Zen Workspace Studio Tools */}
+          <div className="px-3 pb-2 shrink-0">
+            <div className="px-2 pb-1 text-[11px] font-semibold tracking-wider uppercase text-zinc-400 dark:text-zinc-500">
+              Workspace
+            </div>
+            <div className="space-y-0.5">
               <button
+                type="button"
                 onClick={() => {
-                  createNewChat();
-                  if (window.innerWidth < 768) setIsMenuOpen(false);
+                  setIsWebDevMode(true);
+                  if (isMobile) setIsMenuOpen(false);
                 }}
-                className="w-full py-2.5 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-900 dark:border-zinc-700 text-white dark:text-zinc-100 font-semibold text-xs transition-all cursor-pointer flex items-center space-x-2 shadow-xs"
+                className="w-full py-2 px-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white text-xs font-medium transition-colors cursor-pointer flex items-center justify-between group"
               >
-                <Plus className="w-4 h-4 text-zinc-300 dark:text-zinc-300 stroke-[2.2]" />
-                <span>New Chat</span>
+                <div className="flex items-center space-x-2.5">
+                  <Code2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Canvas & Code</span>
+                </div>
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                  Sandbox
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateMediaMode(true);
+                  if (isMobile) setIsMenuOpen(false);
+                }}
+                className="w-full py-2 px-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white text-xs font-medium transition-colors cursor-pointer flex items-center justify-between group"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Wand2 className="w-4 h-4 text-violet-500 shrink-0" />
+                  <span>Studio & Images</span>
+                </div>
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                  Creator
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRepoPickerOpen(true);
+                  if (isMobile) setIsMenuOpen(false);
+                }}
+                className="w-full py-2 px-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white text-xs font-medium transition-colors cursor-pointer flex items-center justify-between group"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Github className="w-4 h-4 text-zinc-500 dark:text-zinc-400 shrink-0" />
+                  <span className="truncate">{connectedRepo ? connectedRepo.name : "Connected GitHub"}</span>
+                </div>
+                {connectedRepo ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                ) : (
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Repos
+                  </span>
+                )}
               </button>
             </div>
+          </div>
 
-            {/* Search Input */}
-            <div className="px-3 py-1 shrink-0">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 pointer-events-none" />
-                <input
-                  ref={sidebarSearchInputRef}
-                  type="text"
-                  placeholder="Search chats..."
-                  value={sidebarSearchQuery}
-                  onChange={(e) => setSidebarSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/80 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
-                />
-                {sidebarSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSidebarSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+          {/* Conversations Section */}
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3 scrollbar-none min-h-0 border-t border-zinc-100 dark:border-zinc-900/60">
+            {/* Pinned section if any */}
+            {savedChats.filter((c) => c.pinned && (!sidebarSearchQuery || c.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase()))).length > 0 && (
+              <div>
+                <div className="px-2 pb-1 text-[11px] font-semibold tracking-wider uppercase text-zinc-400 dark:text-zinc-500 flex items-center space-x-1.5">
+                  <Pin className="w-3 h-3" />
+                  <span>Pinned</span>
+                </div>
+                <div className="space-y-0.5">
+                  {savedChats
+                    .filter((c) => c.pinned && (!sidebarSearchQuery || c.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase())))
+                    .sort((a, b) => b.updatedAt - a.updatedAt)
+                    .map((chat) => renderChatItem(chat))}
+                </div>
+              </div>
+            )}
+
+            {/* Recents section */}
+            <div>
+              <div className="px-2 pb-1 text-[11px] font-semibold tracking-wider uppercase text-zinc-400 dark:text-zinc-500">
+                Conversations
+              </div>
+              <div className="space-y-0.5">
+                {savedChats.filter((c) => !c.pinned && (!sidebarSearchQuery || c.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase()))).length === 0 ? (
+                  <div className="px-2 py-2 text-xs text-zinc-400 dark:text-zinc-600 font-normal">
+                    {sidebarSearchQuery ? "No matching conversations" : "No recent conversations"}
+                  </div>
+                ) : (
+                  savedChats
+                    .filter((c) => !c.pinned && (!sidebarSearchQuery || c.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase())))
+                    .sort((a, b) => b.updatedAt - a.updatedAt)
+                    .map((chat) => renderChatItem(chat))
                 )}
               </div>
             </div>
+          </div>
 
-            {/* 3, 4, 5. Scrollable Area: Pinned & Recent Chats */}
-            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4 scrollbar-thin min-h-0">
-              {savedChats.length === 0 ? (
-                <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-dashed border-zinc-200 dark:border-zinc-700 text-center space-y-1 my-1">
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300 font-medium">No saved chats yet.</p>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Start a new conversation to save your history!</p>
+          {/* Zen User & Account Footer */}
+          <div className="p-3 border-t border-zinc-100 dark:border-zinc-900 bg-white dark:bg-black shrink-0 mt-auto">
+            {showLogoutConfirm ? (
+              <div className="w-full p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-between">
+                <span className="text-xs text-zinc-800 dark:text-zinc-200 font-medium">Log out of Zen?</span>
+                <div className="flex items-center space-x-2.5">
+                  <button
+                    onClick={() => {
+                      handleSignOut();
+                      setShowLogoutConfirm(false);
+                      setIsMenuOpen(false);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-md bg-red-600 text-white hover:bg-red-700 cursor-pointer"
+                  >
+                    Logout
+                  </button>
+                  <button
+                    onClick={() => setShowLogoutConfirm(false)}
+                    className="px-2 py-1 text-xs text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
                 </div>
-              ) : (
-                <>
-                  {/* 3. Pinned Section */}
-                  {savedChats.some((c) => c.pinned) && (
-                    <div className="space-y-1">
-                      <div className="px-1 py-1 flex items-center space-x-1.5">
-                        <Pin className="w-3 h-3 text-zinc-400 dark:text-zinc-400 fill-zinc-400 dark:fill-zinc-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                          Pinned
-                        </span>
-                      </div>
-                      {savedChats
-                        .filter((c) => c.pinned && c.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase()))
-                        .sort((a, b) => b.updatedAt - a.updatedAt)
-                        .map((chat) => renderChatItem(chat))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div
+                  className="flex items-center space-x-2.5 min-w-0 cursor-pointer hover:opacity-90 transition-opacity flex-1 mr-2"
+                  onClick={() => {
+                    if (!isLoggedIn) {
+                      setIsAuthOpen(true);
+                    } else {
+                      setIsSettingsOpen(true);
+                    }
+                  }}
+                  title={isLoggedIn ? "Account Settings" : "Sign In"}
+                >
+                  <div className="relative shrink-0">
+                    <img
+                      src={userLogoImg}
+                      alt={userName || "Dasgar"}
+                      className="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-800"
+                    />
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 absolute bottom-0 right-0 ring-1 ring-white dark:ring-black" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium text-zinc-900 dark:text-white truncate">
+                      {userName || "Dasgar"}
                     </div>
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 flex items-center space-x-1.5">
+                      <span className="capitalize">{subscription.plan === "pro" ? "Zen Pro" : "Zen Free"}</span>
+                      {subscription.plan === "free" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsPricingOpen(true);
+                          }}
+                          className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                        >
+                          Upgrade
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingsOpen(true);
+                      if (isMobile) setIsMenuOpen(false);
+                    }}
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+                    title="Settings"
+                    aria-label="Settings"
+                  >
+                    <Settings className="w-4 h-4 stroke-[1.9]" />
+                  </button>
+                  {isLoggedIn && (
+                    <button
+                      type="button"
+                      onClick={() => setShowLogoutConfirm(true)}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+                      title="Log out"
+                      aria-label="Log out"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
                   )}
-
-                  {/* 4. Recent Section */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between px-1 py-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        {savedChats.some((c) => c.pinned) ? "Recent" : "Saved Chats"}
-                      </span>
-                      <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-0.5 rounded-full font-medium border border-zinc-200 dark:border-zinc-700">
-                        {savedChats.length}
-                      </span>
-                    </div>
-                    {savedChats
-                      .filter((c) => !c.pinned && c.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase()))
-                      .sort((a, b) => b.updatedAt - a.updatedAt)
-                      .map((chat) => renderChatItem(chat))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Bottom Fixed Section: User Account Row */}
-            <div className="p-3 border-t border-zinc-200/80 dark:border-zinc-800/80 space-y-2 bg-white dark:bg-[#141413] shrink-0 mt-auto">
-              {!isInstalled && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsInstallModalOpen(true);
-                    if (window.innerWidth < 768) setIsMenuOpen(false);
-                  }}
-                  className="w-full py-2 px-3 rounded-xl bg-[#48A04C]/10 hover:bg-[#48A04C]/15 border border-[#48A04C]/30 text-[#48A04C] font-semibold text-xs transition-colors cursor-pointer flex items-center justify-between shadow-2xs"
-                >
-                  <div className="flex items-center space-x-2">
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Install App</span>
-                  </div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider">PWA</span>
-                </button>
-              )}
-              {/* User Account Row */}
-              {isLoggedIn ? (
-                showLogoutConfirm ? (
-                  <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex flex-col space-y-2">
-                    <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Do you want to logout?</span>
-                    <div className="flex items-center space-x-4 pt-0.5">
-                      <button
-                        onClick={() => {
-                          handleSignOut();
-                          setShowLogoutConfirm(false);
-                          setIsMenuOpen(false);
-                        }}
-                        className="text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors cursor-pointer"
-                      >
-                        Logout
-                      </button>
-                      <button
-                        onClick={() => setShowLogoutConfirm(false)}
-                        className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/80 dark:border-zinc-700/80 flex items-center justify-between">
-                    <div className="flex items-center space-x-2.5 min-w-0">
-                      <div className="w-8.5 h-8.5 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white font-semibold text-xs shadow-inner select-none uppercase shrink-0">
-                        {userName ? userName.trim().charAt(0).toUpperCase() : "U"}
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">{userName || "User"}</span>
-                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium truncate">
-                          {userEmail || "Free Account"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-0.5 shrink-0">
-                      <button
-                        onClick={() => {
-                          setIsSettingsOpen(true);
-                          if (window.innerWidth < 768) setIsMenuOpen(false);
-                        }}
-                        className="p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
-                        title="Settings"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setShowLogoutConfirm(true)}
-                        className="p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                        title="Sign Out"
-                      >
-                        <LogOut className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )
-              ) : (
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    setIsAuthOpen(true);
-                  }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-900 dark:border-zinc-700 text-white dark:text-zinc-100 font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center space-x-2 shadow-xs"
-                >
-                  <LogIn className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-300" />
-                  <span>Sign In / Register</span>
-                </button>
-              )}
-            </div>
-          </motion.div>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
       </motion.aside>
 
       {/* Desktop Top Left Header Area (Static Model Name - slides with sidebar, hidden after chat starts) */}
@@ -3748,11 +3871,12 @@ ${code}
             left: isMobile ? 0 : (isMenuOpen ? 296 : 80),
           }}
           transition={sidebarTransition}
-          className="hidden md:flex fixed top-3.5 z-30 items-center"
+          className="hidden md:flex fixed top-3.5 z-30 items-center space-x-2.5"
         >
-          {/* Static Model Label */}
-          <span className="text-base sm:text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-100 select-none">
-            GNX Rout
+          {/* Static Brand Label */}
+          <GenexLogo className="w-5 h-5" />
+          <span className="text-base sm:text-lg font-medium tracking-tight text-zinc-900 dark:text-zinc-100 select-none">
+            Zen
           </span>
         </motion.div>
       )}
@@ -3798,18 +3922,19 @@ ${code}
           <button
             type="button"
             onClick={() => setIsMenuOpen(true)}
-            className="w-10 h-10 -ml-1 text-zinc-900 dark:text-zinc-100 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center"
-            aria-label="Open Menu"
+            className="w-10 h-10 -ml-1 rounded-full bg-transparent flex items-center justify-center text-zinc-800 dark:text-zinc-200 hover:text-zinc-950 dark:hover:text-white active:bg-black/[0.08] dark:active:bg-white/[0.12] transition-colors duration-150 cursor-pointer border-0 shadow-none outline-none focus:outline-none focus:bg-transparent select-none"
+            aria-label="Open sidebar"
+            title="Open sidebar"
           >
-            <PanelLeft className="w-5 h-5 stroke-[1.8]" />
+            <ClaudeHamburgerIcon />
           </button>
         </div>
 
         {/* Center branding - ONLY on home/empty screen */}
         {!hasChatStarted && (
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2.5 select-none pointer-events-none">
-            <GenexLogo className="w-8 h-8 pointer-events-auto shrink-0 drop-shadow-sm" />
-            <span className="text-zinc-950 dark:text-white font-extrabold text-[24px] sm:text-[26px] tracking-tight pointer-events-auto font-sans leading-none">
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 select-none pointer-events-none">
+            <GenexLogo className="w-5 h-5 pointer-events-auto" />
+            <span className="text-zinc-950 dark:text-white font-medium text-lg tracking-tight pointer-events-auto">
               Zen
             </span>
           </div>
@@ -3818,17 +3943,6 @@ ${code}
         {/* Right action / Avatar / Login - ONLY on home/empty screen */}
         {!hasChatStarted && (
           <div className="flex items-center gap-2">
-            {!isInstalled && (
-              <button
-                type="button"
-                onClick={() => setIsInstallModalOpen(true)}
-                className="w-10 h-10 rounded-full cursor-pointer transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-200 bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] border border-black/[0.08] dark:border-white/[0.1]"
-                title="Install Zen App"
-                aria-label="Install Zen App"
-              >
-                <Download className="w-4.5 h-4.5 text-[#48A04C]" />
-              </button>
-            )}
             {isLoggedIn && (
               <button
                 type="button"
@@ -3849,18 +3963,18 @@ ${code}
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(true)}
-                className="w-10 h-10 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-xs cursor-pointer select-none uppercase ml-1"
-                title="Account Menu"
+                className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-zinc-300 dark:ring-zinc-800 cursor-pointer ml-1"
+                title={userName || "Dasgar"}
               >
-                {userName ? userName.trim().charAt(0).toUpperCase() : "U"}
+                <img src={userLogoImg} alt={userName || "Dasgar"} className="w-full h-full object-cover" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsAuthOpen(true)}
-                className="h-10 px-4 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-[#f3efe8] dark:hover:bg-white text-white dark:text-zinc-950 font-bold text-sm tracking-wide transition-colors cursor-pointer shadow-xs ml-1 flex items-center justify-center border border-zinc-900 dark:border-transparent"
+                className="h-9 px-3.5 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-zinc-950 font-medium text-xs tracking-wide transition-colors cursor-pointer shadow-xs ml-1 flex items-center justify-center"
               >
-                Login
+                Sign in
               </button>
             )}
           </div>
@@ -4200,15 +4314,10 @@ ${code}
                 {msg.role === "model" && renderMessageStatusHeader(msg, index, false)}
 
                 <div
-                  style={
-                    msg.role === "user"
-                      ? { backgroundColor: systemTheme === "dark" ? "#262624" : "#27272a", color: "#ffffff", opacity: 1 }
-                      : { backgroundColor: "transparent" }
-                  }
                   className={
                     msg.role === "user"
-                      ? "max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 self-end font-medium text-base sm:text-lg md:text-[1.125rem] leading-relaxed break-words border-0 shadow-none bg-zinc-800 text-white opacity-100"
-                      : "w-full max-w-none bg-transparent px-0 py-2 text-zinc-900 dark:text-zinc-100 font-medium text-base sm:text-lg md:text-[1.125rem] leading-relaxed self-start"
+                      ? "max-w-[85%] sm:max-w-[75%] rounded-[22px] px-4.5 py-2.5 self-end font-normal text-base sm:text-[16px] leading-relaxed break-words bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200/60 dark:border-zinc-800/80 shadow-2xs"
+                      : "w-full max-w-none bg-transparent px-0 py-2 text-zinc-900 dark:text-white font-normal text-base sm:text-[17px] leading-relaxed self-start"
                   }
                 >
                   {renderMessageContent(msg)}
@@ -4386,42 +4495,56 @@ ${code}
         </div>
       ) : null}
 
-      {/* Mobile Greeting / Centerpiece - ONLY before chat starts on mobile */}
-      {!hasChatStarted && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 select-none pb-28 sm:hidden">
-          <h2 className="text-zinc-900 dark:text-zinc-100 text-2xl font-extrabold tracking-tight">
-            How can I help you{isLoggedIn && userName ? `, ${userName}` : ""}?
-          </h2>
-        </div>
-      )}
-
       {/* Input / Centerpiece Section */}
       <div
         className={`w-full max-w-4xl lg:max-w-3xl mx-auto ${
           hasChatStarted
-            ? "fixed sm:relative inset-x-0 bottom-0 sm:bottom-auto z-30 sm:z-20 px-3 sm:px-4 pb-[max(10px,env(safe-area-inset-bottom))] sm:pb-6 pt-2 sm:pt-1.5 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#141413] dark:via-[#141413]/95 dark:to-transparent sm:bg-transparent sm:dark:bg-transparent shrink-0"
-            : "fixed sm:relative inset-x-0 bottom-0 sm:bottom-auto z-30 sm:z-20 px-3 sm:px-4 pb-[max(10px,env(safe-area-inset-bottom))] sm:pb-0 pt-2 sm:pt-0 sm:m-auto sm:flex sm:flex-col sm:justify-center bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#141413] dark:via-[#141413]/95 dark:to-transparent sm:bg-transparent sm:dark:bg-transparent"
+            ? "fixed sm:relative inset-x-0 bottom-0 sm:bottom-auto z-30 sm:z-20 px-3 sm:px-4 pb-[max(10px,env(safe-area-inset-bottom))] sm:pb-6 pt-2 sm:pt-1.5 bg-white/90 dark:bg-black/90 sm:bg-transparent sm:dark:bg-transparent shrink-0"
+            : "flex-1 flex flex-col justify-center items-center px-3.5 sm:px-4 py-4 sm:py-6 my-auto relative z-20 w-full"
         }`}
       >
-        {/* Centerpiece title - ONLY on desktop/tablet before chat starts */}
+        {/* Centerpiece title & prompt chips before chat starts (Centered on mobile & desktop) */}
         {!hasChatStarted && (
-          <div className="hidden sm:block text-center mb-8 sm:mb-10 select-none animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
-            <h2 className="text-zinc-900 dark:text-zinc-100 text-3xl sm:text-[42px] font-extrabold tracking-tight">
-              How can I help you{isLoggedIn && userName ? `, ${userName}` : ""}?
+          <div className="w-full text-center mb-5 sm:mb-8 select-none animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10 px-1">
+            <h2 className="text-zinc-900 dark:text-white text-2xl sm:text-4xl md:text-5xl font-medium tracking-tight">
+              Hello, {userName || "Dasgar"}
             </h2>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm sm:text-base md:text-lg mt-1.5 sm:mt-2 font-normal">
+              How can I help you today?
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 max-w-xl mx-auto mt-4 sm:mt-5">
+              {[
+                { label: "Create image", prompt: "Create a photorealistic image of a futuristic workspace" },
+                { label: "Write code", prompt: "Write a TypeScript function to debounce an API call" },
+                { label: "Brainstorm ideas", prompt: "Brainstorm 5 innovative startup ideas for 2026" },
+                { label: "Summarize text", prompt: "Summarize the key takeaways of quantum computing simply" },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setInput(item.prompt);
+                    if (inputRef.current) inputRef.current.focus();
+                  }}
+                  className="px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-medium bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white transition-colors cursor-pointer border border-zinc-200/70 dark:border-zinc-800/80"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Dynamic Input Bar - DeepSeek style theme responsive */}
+        {/* Dynamic Input Bar - Zen styled container */}
         <form
           onSubmit={handleSubmit}
           className="w-full relative group shrink-0 bg-transparent"
         >
           <div
-            className={`relative w-full rounded-[20px] sm:rounded-[22px] flex flex-col backdrop-blur-xl ${
+            className={`relative w-full rounded-[24px] sm:rounded-[28px] flex flex-col ${
               isPrivateChat
-                ? "bg-[#48A04C]/[0.08] dark:bg-[#48A04C]/[0.12] border border-[#48A04C]/60 focus-within:border-[#48A04C] shadow-[0_0_20px_rgba(72,160,76,0.18)] dark:shadow-[0_0_25px_rgba(72,160,76,0.25)] ring-1 ring-[#48A04C]/30"
-                : "bg-black/[0.04] dark:bg-white/[0.06] border border-zinc-200/90 dark:border-zinc-700/70 focus-within:border-zinc-300 dark:focus-within:border-zinc-600 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-none"
+                ? "bg-[#48A04C]/[0.08] dark:bg-[#48A04C]/[0.12] border border-[#48A04C]/60 focus-within:border-[#48A04C]"
+                : "bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 focus-within:border-zinc-400 dark:focus-within:border-zinc-600 shadow-2xs"
             }`}
           >
             {/* Attached Files Preview Grid */}
@@ -4506,7 +4629,7 @@ ${code}
                 className={`w-full bg-transparent outline-none resize-none leading-relaxed scrollbar-none focus:ring-0 border-0 font-normal rounded-[20px] sm:rounded-[22px] text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-400 max-h-[260px] ${
                   hasChatStarted
                     ? "pt-3 sm:pt-3.5 pb-13 sm:pb-11.5 pl-4 sm:pl-5 pr-4 sm:pr-5 min-h-[72px] sm:min-h-[72px] text-base"
-                    : "pt-3.5 sm:pt-4.5 lg:pt-5 pb-13 sm:pb-16 lg:pb-18 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 min-h-[76px] sm:min-h-[122px] lg:min-h-[142px] text-base md:text-lg"
+                    : "pt-3.5 sm:pt-4.5 lg:pt-5 pb-13 sm:pb-16 lg:pb-18 pl-4 sm:pl-5 lg:pl-6 pr-4 sm:pr-5 lg:pr-6 min-h-[96px] sm:min-h-[122px] lg:min-h-[142px] text-base md:text-lg"
                 }`}
                 disabled={isLoading}
               />
